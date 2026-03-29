@@ -285,3 +285,11 @@ otherwise allow.
 
 Massive Attack for "Dissolved Girl", and `gemma3-4b-FLM` for deciding
 that "Diffused Lemon" would be a good name.
+
+## Examples
+
+See `examples/` for sample outputs:
+
+| Desktop Mode | Mobile Mode |
+|--------------|-------------|
+| ![Desktop](examples/desktop.png) | ![Mobile](examples/mobile.png) |
