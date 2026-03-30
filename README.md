@@ -210,10 +210,10 @@ ruff format middleware/server.py
 The middleware server serves both the API and the frontend UI:
 
 ```bash
-# From project root
+# From project root, run as module
 python3 -m middleware.server
 
-# Or
+# Or directly (requires path setup)
 python3 middleware/server.py
 ```
 
