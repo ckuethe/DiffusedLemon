@@ -16,20 +16,20 @@ class JSONLogger:
         self.log_file = log_file
         self.logger = logging.getLogger("diffused_lemon")
         self.logger.setLevel(getattr(logging, level.upper(), logging.INFO))
-        
+
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(getattr(logging, level.upper(), logging.INFO))
-        
-        formatter = logging.Formatter('%(message)s')
+
+        formatter = logging.Formatter("%(message)s")
         file_handler.setFormatter(formatter)
-        
+
         self.logger.addHandler(file_handler)
 
     def _log(self, level: str, message: str, **kwargs):
         log_entry = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "level": level,
-            "message": message
+            "message": message,
         }
         log_entry.update(kwargs)
         self.logger.log(getattr(logging, level.upper()), json.dumps(log_entry))
@@ -54,5 +54,6 @@ def get_logger():
     global logger
     if logger is None:
         from config import config
+
         logger = JSONLogger(config.log_file, config.log_level)
     return logger

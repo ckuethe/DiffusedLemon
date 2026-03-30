@@ -13,25 +13,25 @@ class Config:
 
     def _load(self):
         if os.path.exists(self.config_path):
-            with open(self.config_path, 'r') as f:
+            with open(self.config_path, "r") as f:
                 self._config = json.load(f)
         self._apply_env_vars()
 
     def _apply_env_vars(self):
         env_mapping = {
-            'LM_SERVER_URI': 'server_uri',
-            'LM_STORAGE_DIR': 'storage_dir',
-            'LM_LOG_FILE': 'log_file',
-            'LM_AUTH_TOKEN': 'auth_token',
-            'LM_DEFAULT_MODEL': 'default_model',
-            'LM_DEFAULT_SIZE': 'default_size',
-            'LM_PROMPT_ASSIST_MODEL': 'prompt_assist_model',
-            'LM_PROMPT_ASSIST_SYSTEM_PROMPT': 'prompt_assist_system_prompt'
+            "LM_SERVER_URI": "server_uri",
+            "LM_STORAGE_DIR": "storage_dir",
+            "LM_LOG_FILE": "log_file",
+            "LM_AUTH_TOKEN": "auth_token",
+            "LM_DEFAULT_MODEL": "default_model",
+            "LM_DEFAULT_SIZE": "default_size",
+            "LM_PROMPT_ASSIST_MODEL": "prompt_assist_model",
+            "LM_PROMPT_ASSIST_SYSTEM_PROMPT": "prompt_assist_system_prompt",
         }
         for env_var, config_key in env_mapping.items():
             if env_var in os.environ:
                 value = os.environ[env_var]
-                if config_key == 'auth_token' and value == '':
+                if config_key == "auth_token" and value == "":
                     value = None
                 self._config[config_key] = value
 

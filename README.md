@@ -190,6 +190,21 @@ The middleware exposes the following endpoints:
 - **Base64 Images**: Images displayed directly in browser without intermediate files
 - **Single Server**: Frontend served by middleware (relative URLs work from any host)
 
+## Code Style
+
+Python code should be formatted with [Ruff](https://docs.astral.sh/ruff/):
+
+```bash
+# Install ruff (if not already installed)
+pip install ruff
+
+# Format all Python files
+ruff format middleware/
+
+# Or format a specific file
+ruff format middleware/server.py
+```
+
 ## Running the Server
 
 The middleware server serves both the API and the frontend UI:

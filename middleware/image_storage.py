@@ -38,37 +38,37 @@ class ImageStorage:
     def save_image(self, b64_data: str, metadata: Dict[str, Any]) -> str:
         filename = self._generate_filename()
         image_path = os.path.join(self.images_dir, filename)
-        metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
-        
+        metadata_path = os.path.join(
+            self.metadata_dir, filename.replace(".png", ".json")
+        )
+
         image_data = base64.b64decode(b64_data)
         image = Image.open(io.BytesIO(image_data))
         image.save(image_path, "PNG")
-        
+
         metadata["filename"] = filename
         metadata["timestamp"] = datetime.utcnow().isoformat() + "Z"
-        
-        with open(metadata_path, 'w') as f:
+
+        with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
-        
+
         logger.info("Image saved", filename=filename)
-        
+
         return filename
 
     def get_image(self, filename: str) -> Optional[Dict[str, Any]]:
         image_path = os.path.join(self.images_dir, filename)
         if os.path.exists(image_path):
-            with open(image_path, 'rb') as f:
-                b64_data = base64.b64encode(f.read()).decode('utf-8')
-            metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
+            with open(image_path, "rb") as f:
+                b64_data = base64.b64encode(f.read()).decode("utf-8")
+            metadata_path = os.path.join(
+                self.metadata_dir, filename.replace(".png", ".json")
+            )
             metadata = {}
             if os.path.exists(metadata_path):
-                with open(metadata_path, 'r') as f:
+                with open(metadata_path, "r") as f:
                     metadata = json.load(f)
-            return {
-                "filename": filename,
-                "image": b64_data,
-                "metadata": metadata
-            }
+            return {"filename": filename, "image": b64_data, "metadata": metadata}
         return None
 
     def list_images(self, limit: int = 50) -> List[Dict[str, Any]]:
