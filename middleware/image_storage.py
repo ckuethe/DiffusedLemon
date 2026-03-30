@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import sys
 import base64
@@ -8,13 +7,13 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 from PIL import Image
 
+from .config import config
+from .logger import get_logger
+
 sys_path_added = False
 if os.path.dirname(__file__) not in sys.path:
     sys.path.insert(0, os.path.dirname(__file__))
     sys_path_added = True
-
-from config import config
-from logger import get_logger
 
 
 logger = get_logger()

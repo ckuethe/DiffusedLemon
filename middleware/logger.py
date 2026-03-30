@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 from datetime import datetime
-from typing import Dict, Any, Optional, List
 
 sys_path_added = False
 if os.path.dirname(__file__) not in sys.path:
