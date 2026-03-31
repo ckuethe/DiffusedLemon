@@ -1,0 +1,30 @@
+[Unit]
+Description=Diffused Lemon Middleware Server
+Documentation=https://github.com/ckuethe/DiffusedLemon
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=your-username
+Group=your-group
+WorkingDirectory=/home/your-username/diffused-lemon/middleware
+ExecStart=/usr/bin/python3 -m middleware.server --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=5s
+
+# Environment variables
+Environment="LM_SERVER_URI=http://your-lemonade-server:8000"
+Environment="LM_STORAGE_DIR=/home/your-username/diffused-lemon/storage"
+Environment="LM_LOG_FILE=/home/your-username/diffused-lemon/logs.json"
+Environment="LM_LOG_LEVEL=INFO"
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/your-username/diffused-lemon/storage
+ReadWritePaths=/home/your-username/diffused-lemon/logs.json
+
+[Install]
+WantedBy=multi-user.target
