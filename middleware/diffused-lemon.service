@@ -21,10 +21,6 @@ Environment="LM_LOG_LEVEL=INFO"
 
 # Security hardening
 NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/home/your-username/diffused-lemon/storage
-ReadWritePaths=/home/your-username/diffused-lemon/logs.json
 
 [Install]
 WantedBy=multi-user.target
