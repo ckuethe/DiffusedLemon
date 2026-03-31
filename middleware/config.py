@@ -1,10 +1,10 @@
 import json
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
 class Config:
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: Optional[str] = None):
         if config_path is None:
             config_path = os.path.join(os.path.dirname(__file__), "config.json")
         self.config_path = config_path
@@ -27,6 +27,7 @@ class Config:
             "LM_DEFAULT_SIZE": "default_size",
             "LM_PROMPT_ASSIST_MODEL": "prompt_assist_model",
             "LM_PROMPT_ASSIST_SYSTEM_PROMPT": "prompt_assist_system_prompt",
+            "LM_FLUX_ASSISTANT_UNLOAD_DELAY": "flux_assistant_unload_delay",
         }
         for env_var, config_key in env_mapping.items():
             if env_var in os.environ:

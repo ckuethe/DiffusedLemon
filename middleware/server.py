@@ -7,6 +7,7 @@ import argparse
 import base64
 import io
 import time
+import asyncio
 from datetime import datetime
 from PIL import Image
 
@@ -18,6 +19,11 @@ logger = get_logger()
 
 
 class LemonadeClient:
+    _flux_assistant_session: Optional[aiohttp.ClientSession] = None
+    _flux_assistant_last_used: float = 0
+    _unload_task: Optional["asyncio.Task"] = None
+    _tasks: set = set()
+
     def __init__(self, server_uri: Optional[str] = None):
         self.server_uri = server_uri or config.server_uri
         self.auth_token = config.auth_token
@@ -28,10 +34,21 @@ class LemonadeClient:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self._session:
+        if self._session and self._session != LemonadeClient._flux_assistant_session:
             await self._session.close()
+        self._session = None
+
+    async def close(self):
+        if self._session and self._session != LemonadeClient._flux_assistant_session:
+            await self._session.close()
+            self._session = None
 
     async def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+        if self._session is None:
+            raise Exception(
+                "Client session not initialized. Use 'async with' context manager."
+            )
+
         url = f"{self.server_uri}{endpoint}"
         headers = kwargs.get("headers", {"Content-Type": "application/json"})
         if self.auth_token and "Authorization" not in headers:
@@ -50,6 +67,10 @@ class LemonadeClient:
             raise Exception(f"Failed to connect to Lemonade server: {e}")
 
     async def get_models(self) -> list:
+        if self._session is None:
+            raise Exception(
+                "Client session not initialized. Use 'async with' context manager."
+            )
         response = await self._request("GET", "/api/v1/models")
         return response.get("data", [])
 
@@ -92,6 +113,113 @@ class LemonadeClient:
             return True
         except Exception:
             return False
+
+    @classmethod
+    async def get_flux_assistant_session(cls) -> aiohttp.ClientSession:
+        cls._flux_assistant_last_used = time.time()
+        if cls._flux_assistant_session is None:
+            logger.debug("Creating new flux assistant session")
+            cls._flux_assistant_session = aiohttp.ClientSession()
+            logger.debug(
+                f"Flux assistant session created: {cls._flux_assistant_session}"
+            )
+        else:
+            logger.debug(
+                f"Reusing flux assistant session: {cls._flux_assistant_session}"
+            )
+        return cls._flux_assistant_session
+
+    @classmethod
+    async def maybe_unload_flux_assistant(cls) -> None:
+        unload_delay = config.get("flux_assistant_unload_delay", 0)
+        logger.debug("Flux assistant unload check", delay=unload_delay)
+
+        if unload_delay < 0:
+            logger.debug("Flux assistant unloading immediately (delay < 0)")
+            await cls.unload_flux_assistant()
+        elif unload_delay > 0:
+            logger.debug(
+                f"Flux assistant scheduling unload in {unload_delay}s",
+                existing_task=str(cls._unload_task) if cls._unload_task else None,
+            )
+            if cls._unload_task and not cls._unload_task.done():
+                logger.debug(
+                    "Cancelling existing unload task",
+                    task_id=id(cls._unload_task),
+                )
+                cls._unload_task.cancel()
+
+            task = asyncio.create_task(cls._delayed_unload(unload_delay))
+            cls._tasks.add(task)
+            task.add_done_callback(cls._tasks.discard)
+            cls._unload_task = task
+            logger.debug(
+                "Unload task created",
+                task_id=id(task),
+            )
+        else:
+            if cls._unload_task and not cls._unload_task.done():
+                logger.debug(
+                    "Cancelling pending unload task (delay = 0)",
+                    task_id=id(cls._unload_task),
+                )
+                cls._unload_task.cancel()
+
+    @classmethod
+    async def _delayed_unload(cls, delay: float) -> None:
+        logger.debug(f"Delayed unload starting, waiting {delay}s")
+        await asyncio.sleep(delay)
+        if cls._flux_assistant_session is not None:
+            logger.debug("Delayed unload executing")
+            await cls.unload_flux_assistant()
+        else:
+            logger.debug("Delayed unload skipped (session already None)")
+
+    @classmethod
+    async def unload_flux_assistant(cls) -> None:
+        logger.debug("Attempting to unload flux assistant")
+        if cls._flux_assistant_session:
+            try:
+                await cls._flux_assistant_session.close()
+                cls._flux_assistant_session = None
+                logger.info("Flux assistant session unloaded")
+            except Exception as e:
+                logger.error("Failed to unload flux assistant session", error=str(e))
+
+        # Try to unload the model from Lemonade server
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {"model_name": config.prompt_assist_model}
+                async with session.post(
+                    f"{config.server_uri}/api/v1/unload",
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                ) as response:
+                    if response.status == 200:
+                        logger.info(
+                            "Flux assistant model unloaded from Lemonade",
+                            model=config.prompt_assist_model,
+                        )
+                    else:
+                        error_text = await response.text()
+                        logger.warning(
+                            "Failed to unload flux assistant model",
+                            status=response.status,
+                            error=error_text,
+                        )
+        except Exception as e:
+            logger.warning(
+                "Could not unload flux assistant model from Lemonade",
+                error=str(e),
+            )
+
+    @classmethod
+    async def close_all(cls) -> None:
+        if cls._flux_assistant_session:
+            await cls._flux_assistant_session.close()
+            cls._flux_assistant_session = None
+        if cls._unload_task and not cls._unload_task.done():
+            cls._unload_task.cancel()
 
 
 class ImageStorage:
@@ -167,7 +295,10 @@ async def handle_prompt_assist(request: web.Request) -> web.Response:
         if not simple_prompt:
             return web.json_response({"error": "Prompt is required"}, status=400)
 
-        async with LemonadeClient() as client:
+        session = await LemonadeClient.get_flux_assistant_session()
+        client = LemonadeClient()
+        client._session = session
+        try:
             messages = [
                 {"role": "system", "content": config.prompt_assist_system_prompt},
                 {
@@ -186,10 +317,13 @@ async def handle_prompt_assist(request: web.Request) -> web.Response:
                 expanded_prompt=expanded_prompt[:100],
             )
 
+            await LemonadeClient.maybe_unload_flux_assistant()
+
             return web.json_response(
                 {"original_prompt": simple_prompt, "expanded_prompt": expanded_prompt}
             )
-
+        finally:
+            await client.close()
     except Exception as e:
         logger.error("Prompt assist failed", error=str(e))
         return web.json_response({"error": str(e)}, status=500)
@@ -213,6 +347,8 @@ async def handle_generate(request: web.Request) -> web.Response:
         seed = data["seed"]
 
         cfg_scale = data.get("cfg_scale")
+
+        await LemonadeClient.maybe_unload_flux_assistant()
 
         start_time = time.time()
 
@@ -303,11 +439,14 @@ async def handle_health(request: web.Request) -> web.Response:
     async with LemonadeClient() as client:
         available = await client.is_server_available()
 
+    unload_delay = config.get("flux_assistant_unload_delay", 0)
+
     return web.json_response(
         {
             "status": "healthy" if available else "unhealthy",
             "server_uri": config.server_uri,
             "storage_dir": config.storage_dir,
+            "flux_assistant_unload_delay": unload_delay,
         }
     )
 

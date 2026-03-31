@@ -280,7 +280,31 @@
     }
 
     .thumbnail:hover .prompt-preview {
-      display: block;
+       display: block;
+     }
+
+    .prompt-expandable {
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .prompt-expandable:hover {
+      color: var(--primary);
+    }
+
+    .prompt-full {
+      margin-top: 8px;
+      padding: 10px;
+      background-color: var(--bg);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .prompt-full.hidden {
+      display: none;
     }
 
     .thumbnail-info {
@@ -637,8 +661,8 @@
         const date = new Date(data.metadata.timestamp);
         const generationTime = data.metadata.generation_time ? `${data.metadata.generation_time}s` : 'N/A';
         els.imageInfo.innerHTML = `
-          <p><strong>Prompt:</strong> ${data.metadata.prompt.substring(0, 100)}${data.metadata.prompt.length > 100 ? '...' : ''}</p>
-          <p><strong>Model:</strong> ${data.metadata.model}</p>
+              <div class="prompt-container"><strong>Prompt:</strong> <span class="prompt-expandable">${data.metadata.prompt.substring(0, 100)}${data.metadata.prompt.length > 100 ? '...' : ''}</span><div class="prompt-full hidden" data-prompt="${data.metadata.prompt.replace(/"/g, '&quot;')}"></div></div>
+            <p><strong>Model:</strong> ${data.metadata.model}</p>
           <p><strong>Size:</strong> ${data.metadata.size}</p>
           <p><strong>Steps:</strong> ${data.metadata.steps}</p>
           <p><strong>Seed:</strong> ${data.metadata.seed}</p>
@@ -704,9 +728,9 @@
            
            const date = new Date(data.metadata.timestamp);
            const generationTime = data.metadata.generation_time ? `${data.metadata.generation_time}s` : 'N/A';
-           els.imageInfo.innerHTML = `
-             <p><strong>Prompt:</strong> ${data.metadata.prompt.substring(0, 100)}${data.metadata.prompt.length > 100 ? '...' : ''}</p>
-             <p><strong>Model:</strong> ${data.metadata.model}</p>
+          els.imageInfo.innerHTML = `
+              <div class="prompt-container"><strong>Prompt:</strong> <span class="prompt-expandable">${data.metadata.prompt.substring(0, 100)}${data.metadata.prompt.length > 100 ? '...' : ''}</span><div class="prompt-full hidden" data-prompt="${data.metadata.prompt.replace(/"/g, '&quot;')}"></div></div>
+               <p><strong>Model:</strong> ${data.metadata.model}</p>
              <p><strong>Size:</strong> ${data.metadata.size}</p>
              <p><strong>Steps:</strong> ${data.metadata.steps}</p>
              <p><strong>Seed:</strong> ${data.metadata.seed}</p>
@@ -730,10 +754,35 @@
       }
     }
 
+    function togglePromptExpand(expandable) {
+      const container = expandable.parentElement;
+      const fullPrompt = container.querySelector('.prompt-full');
+      
+      if (fullPrompt && fullPrompt.classList.contains('prompt-full')) {
+        const isHidden = fullPrompt.classList.contains('hidden');
+        
+        if (isHidden) {
+          fullPrompt.textContent = fullPrompt.dataset.prompt;
+          fullPrompt.classList.remove('hidden');
+          expandable.style.display = 'none';
+        } else {
+          fullPrompt.classList.add('hidden');
+          expandable.style.display = 'inline';
+        }
+      }
+    }
+
     // Event Listeners
      els.promptAssistBtn.addEventListener('click', handlePromptAssist);
      els.generateBtn.addEventListener('click', handleGenerate);
      els.downloadBtn.addEventListener('click', downloadImage);
+     
+    document.addEventListener('click', (e) => {
+        const expandable = e.target.closest('.prompt-expandable');
+        if (expandable) {
+          togglePromptExpand(expandable);
+        }
+      });
      
      els.randomSeedBtn.addEventListener('click', () => {
        els.seedInput.value = generateRandomSeed();
