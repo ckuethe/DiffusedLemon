@@ -805,14 +805,25 @@
      });
      
         els.modelSelect.addEventListener('change', () => {
-           localStorage.setItem('diffused_lemon_model', els.modelSelect.value);
-         });
+            localStorage.setItem('diffused_lemon_model', els.modelSelect.value);
+          });
+          
+         els.sizeSelect.addEventListener('change', () => {
+            localStorage.setItem('diffused_lemon_size', els.sizeSelect.value);
+          });
 
     // Initialize
     async function init() {
        const serverOk = await checkServerStatus();
        await loadModels();
        loadHistory();
+       
+       // Set default size from localStorage
+       const defaultSize = localStorage.getItem('diffused_lemon_size');
+       if (defaultSize && els.sizeSelect.querySelector(`option[value="${defaultSize}"]`)) {
+         els.sizeSelect.value = defaultSize;
+       }
+       
        if (!serverOk) {
          showError('Server disconnected. Some features may not work.');
        }
