@@ -533,32 +533,44 @@
     }
 
     async function loadModels() {
-      try {
-        const response = await fetch(`${MIDDLEWARE_URL}/models`);
-        const data = await response.json();
-        
-        if (data.models) {
-          models = data.models;
-          
-          // Filter for image generation models
-          const imageModels = models.filter(m => 
-            m.labels?.includes('image') || m.id?.toLowerCase().includes('sd') || m.id?.toLowerCase().includes('flux')
-          );
-          
-          els.modelSelect.innerHTML = imageModels.length > 0 
-            ? imageModels.map(m => `<option value="${m.id}">${m.id}</option>`).join('')
-            : '<option value="">No image models found</option>';
-          
-          // Set default model from config
-          const defaultModel = localStorage.getItem('diffused_lemon_model') || 'SD-Turbo';
-          if (imageModels.find(m => m.id === defaultModel)) {
-            els.modelSelect.value = defaultModel;
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load models:', error);
-      }
-    }
+       try {
+         const response = await fetch(`${MIDDLEWARE_URL}/models`);
+         const data = await response.json();
+         
+         if (data.models) {
+           models = data.models;
+           
+           // Check if flux assistant is available
+           const fluxAssistantAvailable = models.some(m => m.id === 'user.fluxassistant');
+           
+           // Filter for image generation models (excluding user.fluxassistant from model list)
+           const imageModels = models.filter(m => 
+             (m.labels?.includes('image') || m.id?.toLowerCase().includes('sd') || m.id?.toLowerCase().includes('flux')) && m.id !== 'user.fluxassistant'
+           );
+           
+           els.modelSelect.innerHTML = imageModels.length > 0 
+             ? imageModels.map(m => `<option value="${m.id}">${m.id}</option>`).join('')
+             : '<option value="">No image models found</option>';
+           
+           // Set default model from config
+           const defaultModel = localStorage.getItem('diffused_lemon_model') || 'SD-Turbo';
+           if (imageModels.find(m => m.id === defaultModel)) {
+             els.modelSelect.value = defaultModel;
+           }
+           
+           // Update prompt assist button based on flux assistant availability
+           if (fluxAssistantAvailable) {
+             els.promptAssistBtn.disabled = false;
+             els.promptAssistBtn.textContent = '🎨 Prompt Assist';
+           } else {
+             els.promptAssistBtn.disabled = true;
+             els.promptAssistBtn.textContent = 'Prompt Assist Unavailable';
+           }
+         }
+       } catch (error) {
+         console.error('Failed to load models:', error);
+       }
+     }
 
     async function handlePromptAssist() {
       const prompt = els.promptInput.value.trim();
