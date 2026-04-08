@@ -496,6 +496,22 @@ def main():
     elif args.verbose:
         os.environ["LM_LOG_LEVEL"] = "INFO"
 
+        # Recreate logger with stream output for debug mode
+    if args.debug:
+        from .logger import JSONLogger
+
+        log_level = os.environ.get("LM_LOG_LEVEL", "DEBUG")
+        logger.logger = JSONLogger(
+            config.log_file, log_level, stream_output=True
+        ).logger
+    else:
+        from .logger import JSONLogger
+
+        log_level = os.environ.get("LM_LOG_LEVEL", "INFO")
+        logger.logger = JSONLogger(
+            config.log_file, log_level, stream_output=False
+        ).logger
+
     web.run_app(create_app(), host=args.host, port=args.port)
 
 
