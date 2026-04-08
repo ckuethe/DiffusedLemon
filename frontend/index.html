@@ -516,21 +516,24 @@
       els.errorMessage.classList.remove('visible');
     }
 
-    async function checkServerStatus() {
-      try {
-        const response = await fetch(`${MIDDLEWARE_URL}/health`);
-        if (response.ok) {
-          els.statusIndicator.classList.add('connected');
-          els.statusText.textContent = 'Connected';
-          return true;
-        }
-      } catch (error) {
-        els.statusIndicator.classList.remove('connected');
-        els.statusText.textContent = 'Disconnected';
-        console.error('Server status check failed:', error);
-      }
-      return false;
-    }
+    let serverConfig = null;
+
+     async function checkServerStatus() {
+       try {
+         const response = await fetch(`${MIDDLEWARE_URL}/health`);
+         if (response.ok) {
+           serverConfig = await response.json();
+           els.statusIndicator.classList.add('connected');
+           els.statusText.textContent = 'Connected';
+           return true;
+         }
+       } catch (error) {
+         els.statusIndicator.classList.remove('connected');
+         els.statusText.textContent = 'Disconnected';
+         console.error('Server status check failed:', error);
+       }
+       return false;
+     }
 
     async function loadModels() {
        try {
@@ -818,8 +821,11 @@
        await loadModels();
        loadHistory();
        
-       // Set default size from localStorage
-       const defaultSize = localStorage.getItem('diffused_lemon_size');
+       // Set default size from localStorage, then fall back to config
+       let defaultSize = localStorage.getItem('diffused_lemon_size');
+       if (!defaultSize && serverConfig?.default_size) {
+         defaultSize = serverConfig.default_size;
+       }
        if (defaultSize && els.sizeSelect.querySelector(`option[value="${defaultSize}"]`)) {
          els.sizeSelect.value = defaultSize;
        }

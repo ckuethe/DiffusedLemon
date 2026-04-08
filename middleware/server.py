@@ -440,6 +440,7 @@ async def handle_health(request: web.Request) -> web.Response:
         available = await client.is_server_available()
 
     unload_delay = config.get("flux_assistant_unload_delay", 0)
+    default_size = config.get("default_size", "512x512")
 
     return web.json_response(
         {
@@ -447,6 +448,7 @@ async def handle_health(request: web.Request) -> web.Response:
             "server_uri": config.server_uri,
             "storage_dir": config.storage_dir,
             "flux_assistant_unload_delay": unload_delay,
+            "default_size": default_size,
         }
     )
 
