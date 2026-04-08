@@ -1,7 +1,7 @@
 import json
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, UTC
 
 
 class JSONLogger:
@@ -28,7 +28,7 @@ class JSONLogger:
 
     def _log(self, level: str, message: str, **kwargs):
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "level": level,
             "message": message,
         }

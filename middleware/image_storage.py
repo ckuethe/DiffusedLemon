@@ -2,7 +2,7 @@ import json
 import os
 import base64
 import io
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, Any, Optional, List
 from PIL import Image
 
@@ -25,7 +25,7 @@ class ImageStorage:
         os.makedirs(self.metadata_dir, exist_ok=True)
 
     def _generate_filename(self) -> str:
-        timestamp = datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = datetime.now(UTC).strftime("%Y-%m-%d_%H-%M-%S")
         return f"{timestamp}.png"
 
     def save_image(self, b64_data: str, metadata: Dict[str, Any]) -> str:
@@ -40,7 +40,7 @@ class ImageStorage:
         image.save(image_path, "PNG")
 
         metadata["filename"] = filename
-        metadata["timestamp"] = datetime.utcnow().isoformat() + "Z"
+        metadata["timestamp"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
