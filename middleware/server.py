@@ -283,6 +283,22 @@ class ImageStorage:
                     images.append(image_data)
         return images
 
+    def list_images_metadata(self, limit: int = 50) -> List[Dict[str, Any]]:
+        images: List[Dict[str, Any]] = []
+        for filename in sorted(os.listdir(self.images_dir), reverse=True)[:limit]:
+            if filename.endswith(".png"):
+                metadata_path = os.path.join(
+                    self.metadata_dir, filename.replace(".png", ".json")
+                )
+                if os.path.exists(metadata_path):
+                    with open(metadata_path, "r") as f:
+                        metadata = json.load(f)
+                    images.append({
+                        "filename": filename,
+                        "metadata": metadata
+                    })
+        return images
+
 
 image_storage = ImageStorage()
 
@@ -435,6 +451,16 @@ async def handle_list_images(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=500)
 
 
+async def handle_list_images_metadata(request: web.Request) -> web.Response:
+    try:
+        limit = int(request.query.get("limit", 50))
+        images = image_storage.list_images_metadata(limit)
+        return web.json_response({"images": images})
+    except Exception as e:
+        logger.error("Failed to list images metadata", error=str(e))
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_health(request: web.Request) -> web.Response:
     async with LemonadeClient() as client:
         available = await client.is_server_available()
@@ -471,6 +497,7 @@ def create_app() -> web.Application:
     app.router.add_post("/generate", handle_generate)
     app.router.add_get("/models", handle_get_models)
     app.router.add_get("/images", handle_list_images)
+    app.router.add_get("/images/metadata", handle_list_images_metadata)
     app.router.add_get("/images/{filename}", handle_get_image)
     app.router.add_get("/health", handle_health)
     return app
