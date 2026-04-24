@@ -60,6 +60,12 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
 
+    .server-info {
+      font-size: 0.85rem;
+      color: var(--text-light);
+      margin-left: 10px;
+    }
+
     .status-indicator {
       width: 10px;
       height: 10px;
@@ -383,6 +389,7 @@
       <div class="status-bar">
         <div class="status-indicator" id="statusIndicator"></div>
         <span id="statusText">Connecting...</span>
+        <span id="serverInfo" class="server-info"></span>
       </div>
     </header>
 
@@ -536,22 +543,31 @@
 
     let serverConfig = null;
 
-     async function checkServerStatus() {
-       try {
-         const response = await fetch(`${MIDDLEWARE_URL}/health`);
-         if (response.ok) {
-           serverConfig = await response.json();
-           els.statusIndicator.classList.add('connected');
-           els.statusText.textContent = 'Connected';
-           return true;
-         }
-       } catch (error) {
-         els.statusIndicator.classList.remove('connected');
-         els.statusText.textContent = 'Disconnected';
-         console.error('Server status check failed:', error);
-       }
-       return false;
-     }
+async function checkServerStatus() {
+        try {
+          const response = await fetch(`${MIDDLEWARE_URL}/health`);
+          if (response.ok) {
+            serverConfig = await response.json();
+            const isHealthy = serverConfig.status === 'healthy';
+            els.statusIndicator.classList.toggle('connected', isHealthy);
+            els.statusText.textContent = isHealthy ? 'Connected' : 'Disconnected';
+            if (serverConfig?.server_uri) {
+              try {
+                const url = new URL(serverConfig.server_uri);
+                document.getElementById('serverInfo').textContent = `Backend: ${url.hostname} (${isHealthy ? 'OK' : 'Offline'})`;
+              } catch {
+                document.getElementById('serverInfo').textContent = `Backend: ${serverConfig.server_uri} (${isHealthy ? 'OK' : 'Offline'})`;
+              }
+            }
+            return isHealthy;
+          }
+        } catch (error) {
+          els.statusIndicator.classList.remove('connected');
+          els.statusText.textContent = 'Disconnected';
+          console.error('Server status check failed:', error);
+        }
+        return false;
+      }
 
     async function loadModels() {
        try {
