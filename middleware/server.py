@@ -237,8 +237,21 @@ class ImageStorage:
         timestamp = datetime.now(UTC).strftime("%Y-%m-%d_%H-%M-%S")
         return f"{timestamp}.png"
 
-    def save_image(self, b64_data: str, metadata: Dict[str, Any]) -> str:
-        filename = self._generate_filename()
+    def save_image(
+        self,
+        b64_data: str,
+        metadata: Dict[str, Any],
+        suffix: str = "",
+        base_filename: str = "",
+    ) -> str:
+        if base_filename:
+            base = base_filename.replace(".png", "")
+            filename = f"{base}_{suffix}.png" if suffix else base_filename
+        else:
+            timestamp = datetime.now(UTC).strftime("%Y-%m-%d_%H-%M-%S")
+            if suffix:
+                timestamp = f"{timestamp}_{suffix}"
+            filename = f"{timestamp}.png"
         image_path = os.path.join(self.images_dir, filename)
         metadata_path = os.path.join(
             self.metadata_dir, filename.replace(".png", ".json")
@@ -283,6 +296,15 @@ class ImageStorage:
                     images.append(image_data)
         return images
 
+    def get_metadata(self, filename: str) -> Optional[Dict[str, Any]]:
+        metadata_path = os.path.join(
+            self.metadata_dir, filename.replace(".png", ".json")
+        )
+        if os.path.exists(metadata_path):
+            with open(metadata_path, "r") as f:
+                return json.load(f)
+        return None
+
     def list_images_metadata(self, limit: int = 50) -> List[Dict[str, Any]]:
         images: List[Dict[str, Any]] = []
         for filename in sorted(os.listdir(self.images_dir), reverse=True)[:limit]:
@@ -293,10 +315,7 @@ class ImageStorage:
                 if os.path.exists(metadata_path):
                     with open(metadata_path, "r") as f:
                         metadata = json.load(f)
-                    images.append({
-                        "filename": filename,
-                        "metadata": metadata
-                    })
+                    images.append({"filename": filename, "metadata": metadata})
         return images
 
 
@@ -406,9 +425,9 @@ async def handle_generate(request: web.Request) -> web.Response:
                 generation_time=f"{generation_time:.2f}s",
             )
 
-            return web.json_response(
-                {"filename": filename, "image": b64_image, "metadata": metadata}
-            )
+            response_data = {"filename": filename, "image": b64_image, "metadata": metadata}
+            logger.info("Generate response", filename=filename)
+            return web.json_response(response_data)
 
     except Exception as e:
         logger.error("Image generation failed", error=str(e))
@@ -461,6 +480,122 @@ async def handle_list_images_metadata(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=500)
 
 
+ESRGAN_MODELS = {
+    "photo": "RealESRGAN-x4plus",
+    "anime": "RealESRGAN-x4plus-anime",
+}
+
+
+async def handle_upscale(request: web.Request) -> web.Response:
+    try:
+        data = await request.json()
+        image_b64 = data.get("image")
+        upscale_mode = data.get("mode", "off")
+        original_filename = data.get("filename")
+
+        logger.info(
+            "Upscale request received", mode=upscale_mode, image_len=len(image_b64), original_filename=original_filename
+        )
+
+        if not image_b64:
+            return web.json_response({"error": "Image data required"}, status=400)
+
+        if upscale_mode == "off":
+            logger.info("Upscale mode is off, returning original")
+            return web.json_response({"image": image_b64, "upscaled": False})
+
+        if not original_filename:
+            original_filename = image_storage.save_image(image_b64, {"type": "original"})
+
+        model_name = ESRGAN_MODELS.get(upscale_mode)
+        if not model_name:
+            return web.json_response(
+                {"error": f"Invalid upscaler mode: {upscale_mode}"}, status=400
+            )
+
+        logger.info(
+            "Sending upscale request to backend",
+            model=model_name,
+            url=f"{config.server_uri}/api/v1/images/upscale",
+        )
+
+        async with aiohttp.ClientSession() as session:
+            payload = {
+                "image": image_b64,
+                "model": model_name,
+            }
+            async with session.post(
+                f"{config.server_uri}/api/v1/images/upscale",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            ) as response:
+                response_text = await response.text()
+                logger.info(
+                    f"Upscale response: status={response.status}, body={response_text[:500]}"
+                )
+                if response.status >= 400:
+                    logger.error(
+                        f"HTTP {response.status} from upscale: {response_text}"
+                    )
+                    return web.json_response(
+                        {"error": f"Upscale failed: {response_text}"}, status=500
+                    )
+                result = json.loads(response_text)
+
+        logger.info("Parsed upscale response keys", keys=list(result.keys()))
+        upscaled_b64 = result.get("image") or result.get("b64_json")
+        if (
+            not upscaled_b64
+            and "data" in result
+            and isinstance(result["data"], list)
+            and len(result["data"]) > 0
+        ):
+            upscaled_b64 = result["data"][0].get("b64_json")
+        if not upscaled_b64:
+            logger.warning("No image data in upscale response", response=result)
+            return web.json_response(
+                {
+                    "error": "No image data in upscale response",
+                    "keys": list(result.keys()),
+                },
+                status=500,
+            )
+
+        logger.info("Upscale successful", upscaled_len=len(upscaled_b64))
+
+        original_metadata = image_storage.get_metadata(original_filename) or {}
+        logger.info("Original metadata", filename=original_filename, metadata=original_metadata)
+        upscaled_metadata = {
+            **original_metadata,
+            "type": "upscaled",
+            "upscale_mode": upscale_mode,
+        }
+        logger.info("Upscaled metadata before save", metadata=upscaled_metadata)
+        upscaled_filename = image_storage.save_image(
+            upscaled_b64,
+            upscaled_metadata,
+            base_filename=original_filename,
+            suffix="upscaled",
+        )
+
+        logger.info(
+            "Saved images", original=original_filename, upscaled=upscaled_filename
+        )
+
+        return web.json_response(
+            {
+                "image": upscaled_b64,
+                "upscaled": True,
+                "original_filename": original_filename,
+                "upscaled_filename": upscaled_filename,
+            }
+        )
+
+    except Exception as e:
+        logger.error("Upscale failed", error=str(e), exc_info=True)
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_health(request: web.Request) -> web.Response:
     async with LemonadeClient() as client:
         available = await client.is_server_available()
@@ -498,6 +633,7 @@ def create_app() -> web.Application:
     app.router.add_get("/models", handle_get_models)
     app.router.add_get("/images", handle_list_images)
     app.router.add_get("/images/metadata", handle_list_images_metadata)
+    app.router.add_post("/upscale", handle_upscale)
     app.router.add_get("/images/{filename}", handle_get_image)
     app.router.add_get("/health", handle_health)
     return app

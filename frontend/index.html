@@ -404,25 +404,34 @@
              </select>
            </div>
 
-           <div class="form-group">
-              <label for="promptInput">Prompt</label>
-              <textarea id="promptInput" placeholder="Describe the image you want to generate..."></textarea>
-            </div>
+         <div class="form-group">
+             <label for="promptInput">Prompt</label>
+             <textarea id="promptInput" placeholder="Describe the image you want to generate..."></textarea>
+           </div>
 
-          <div class="button-group">
-            <button id="promptAssistBtn" class="secondary">
-              🎨 Prompt Assist
-            </button>
-            <button id="generateBtn" class="primary">
-              Generate
-            </button>
-          </div>
+         <div class="form-group">
+           <label for="upscalerSelect">Upscaler</label>
+           <select id="upscalerSelect">
+             <option value="off">Off</option>
+             <option value="photo">Photo</option>
+             <option value="anime">Anime</option>
+           </select>
+         </div>
 
-          <div class="error-message" id="errorMessage"></div>
-        </div>
+         <div class="button-group">
+           <button id="promptAssistBtn" class="secondary">
+             🎨 Prompt Assist
+           </button>
+           <button id="generateBtn" class="primary">
+             Generate
+           </button>
+         </div>
 
-        <div class="card">
-          <h2>Parameters</h2>
+         <div class="error-message" id="errorMessage"></div>
+       </div>
+
+       <div class="card">
+         <h2>Parameters</h2>
           <div class="form-group">
             <label for="sizeSelect">Image Size</label>
             <select id="sizeSelect">
@@ -462,6 +471,9 @@
             <p class="placeholder">Generation details will appear here</p>
           </div>
           <div class="button-group" id="downloadButtons" style="margin-top: 15px;">
+            <button id="toggleViewBtn" class="secondary" style="display: none;">
+              Toggle Original/Upscaled
+            </button>
             <button id="downloadBtn" class="primary" style="display: none;">
               ⬇ Download
             </button>
@@ -485,7 +497,9 @@
     // State
     let models = [];
     let currentImage = null;
+    let currentImageFilenames = null;
     let currentMetadata = null;
+    let currentView = 'original';
 
     // DOM Elements
     const els = {
@@ -495,17 +509,19 @@
       promptInput: document.getElementById('promptInput'),
       promptAssistBtn: document.getElementById('promptAssistBtn'),
       generateBtn: document.getElementById('generateBtn'),
+      upscalerSelect: document.getElementById('upscalerSelect'),
       errorMessage: document.getElementById('errorMessage'),
       sizeSelect: document.getElementById('sizeSelect'),
       stepsInput: document.getElementById('stepsInput'),
       stepsValue: document.getElementById('stepsValue'),
       seedInput: document.getElementById('seedInput'),
       randomSeedBtn: document.getElementById('randomSeedBtn'),
-      placeholderText: document.getElementById('placeholderText'),
-       generatedImage: document.getElementById('generatedImage'),
-       spinner: document.getElementById('spinner'),
-       imageInfo: document.getElementById('imageInfo'),
-       downloadBtn: document.getElementById('downloadBtn'),
+    placeholderText: document.getElementById('placeholderText'),
+        generatedImage: document.getElementById('generatedImage'),
+        spinner: document.getElementById('spinner'),
+        imageInfo: document.getElementById('imageInfo'),
+        downloadBtn: document.getElementById('downloadBtn'),
+        toggleViewBtn: document.getElementById('toggleViewBtn'),
        historyGrid: document.getElementById('historyGrid')
      };
 
@@ -693,20 +709,58 @@ async function checkServerStatus() {
           throw new Error('Failed to generate image');
         }
 
-      const data = await response.json();
-       
-       els.placeholderText.style.display = 'none';
-        els.generatedImage.src = `data:image/png;base64,${data.image}`;
-        els.generatedImage.style.display = 'block';
-        els.downloadBtn.style.display = 'block';
+  const data = await response.json();
         
-        currentImage = data.image;
         currentMetadata = data.metadata;
         els.promptInput.dataset.promptAssisted = undefined;
         els.promptInput.classList.remove('expanded');
         els.promptInput.dataset.original = undefined;
         
-        // Update image info
+        const upscaleMode = els.upscalerSelect.value;
+        const originalImage = data.image;
+        let upscaledImage = null;
+        
+        els.placeholderText.style.display = 'none';
+        els.generatedImage.src = `data:image/png;base64,${data.image}`;
+        els.generatedImage.style.display = 'block';
+        els.downloadBtn.style.display = 'block';
+        
+        if (upscaleMode !== 'off') {
+          els.spinner.style.display = 'block';
+          try {
+            console.log('Sending upscale request with filename:', data.filename);
+            const upscaleResponse = await fetch(`${MIDDLEWARE_URL}/upscale`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ image: data.image, mode: upscaleMode, filename: data.filename })
+            });
+            if (upscaleResponse.ok) {
+              const upscaleData = await upscaleResponse.json();
+              if (upscaleData.image) {
+                upscaledImage = upscaleData.image;
+                els.generatedImage.src = `data:image/png;base64,${upscaledImage}`;
+                currentImageFilenames.upscaled = upscaleData.upscaled_filename;
+                currentImageFilenames.original = upscaleData.original_filename;
+              }
+            }
+          } catch (error) {
+            console.error('Upscale failed:', error);
+          } finally {
+            els.spinner.style.display = 'none';
+          }
+        }
+        
+        currentImage = { original: originalImage, upscaled: upscaledImage };
+        currentImageFilenames = { original: null, upscaled: null };
+        currentView = 'original';
+        
+        if (upscaledImage) {
+          els.toggleViewBtn.style.display = 'block';
+          els.toggleViewBtn.textContent = 'Show Upscaled';
+        } else {
+          els.toggleViewBtn.style.display = 'none';
+        }
+        
         const date = new Date(data.metadata.timestamp);
         const generationTime = data.metadata.generation_time ? `${data.metadata.generation_time}s` : 'N/A';
         els.imageInfo.innerHTML = `
@@ -739,34 +793,40 @@ async function checkServerStatus() {
         const response = await fetch(`${MIDDLEWARE_URL}/images/metadata?limit=50`);
         const data = await response.json();
         
-        if (data.images && data.images.length > 0) {
+       if (data.images && data.images.length > 0) {
           els.historyGrid.innerHTML = data.images.map((img, index) => {
-            const date = new Date(img.metadata.timestamp);
+            const date = img.metadata.timestamp ? new Date(img.metadata.timestamp) : new Date();
+            const prompt = img.metadata.prompt ? img.metadata.prompt.substring(0, 50) + '...' : (img.metadata.type === 'upscaled' ? 'Upscaled image' : 'No prompt');
+            const model = img.metadata.model || img.metadata.upscale_mode || 'N/A';
             return `
               <div class="thumbnail" data-filename="${img.filename}" onclick="viewImage(this.dataset.filename)">
                 <div class="thumbnail-placeholder">Loading...</div>
-                <div class="prompt-preview">${img.metadata.prompt.substring(0, 50)}...</div>
+                <div class="prompt-preview">${prompt}</div>
                 <div class="thumbnail-info">
                   <span>${date.toLocaleDateString()}</span>
-                  <span class="model-badge">${img.metadata.model}</span>
+                  <span class="model-badge">${model}</span>
                 </div>
               </div>
             `;
           }).join('');
           
-          async function loadThumbnail(img) {
-             const response = await fetch(`${MIDDLEWARE_URL}/images/${img.filename}`);
-             const data = await response.json();
-             const imgEl = document.createElement('img');
-             imgEl.onload = () => {
-               const thumbnail = els.historyGrid.querySelector(`[data-filename="${img.filename}"]`);
-               if (thumbnail) {
-                 thumbnail.querySelector('.thumbnail-placeholder').style.display = 'none';
-                 thumbnail.appendChild(imgEl);
-               }
-             };
-             imgEl.src = `data:image/png;base64,${data.image}`;
-           }
+      async function loadThumbnail(img) {
+              try {
+                const response = await fetch(`${MIDDLEWARE_URL}/images/${img.filename}`);
+                const data = await response.json();
+                const imgEl = document.createElement('img');
+                imgEl.onload = () => {
+                  const thumbnail = els.historyGrid.querySelector(`[data-filename="${img.filename}"]`);
+                  if (thumbnail) {
+                    thumbnail.querySelector('.thumbnail-placeholder').style.display = 'none';
+                    thumbnail.appendChild(imgEl);
+                  }
+                };
+                imgEl.src = `data:image/png;base64,${data.image}`;
+              } catch (error) {
+                console.error(`Failed to load thumbnail for ${img.filename}:`, error);
+              }
+            }
            
            data.images.forEach(img => loadThumbnail(img));
         } else {
@@ -788,14 +848,16 @@ async function checkServerStatus() {
             els.generatedImage.style.display = 'block';
             els.downloadBtn.style.display = 'block';
             
-            currentImage = data.image;
+            currentImage = { original: data.image, upscaled: null };
             currentMetadata = data.metadata;
+            currentView = 'original';
+            els.toggleViewBtn.style.display = 'none';
            
-           const date = new Date(data.metadata.timestamp);
+           const date = data.metadata.timestamp ? new Date(data.metadata.timestamp) : new Date();
            const generationTime = data.metadata.generation_time ? `${data.metadata.generation_time}s` : 'N/A';
           els.imageInfo.innerHTML = `
-              <div class="prompt-container"><strong>Prompt:</strong> <span class="prompt-expandable">${data.metadata.prompt.substring(0, 100)}${data.metadata.prompt.length > 100 ? '...' : ''}</span><div class="prompt-full hidden" data-prompt="${data.metadata.prompt.replace(/"/g, '&quot;')}"></div></div>
-               <p><strong>Model:</strong> ${data.metadata.model}</p>
+              <div class="prompt-container"><strong>Prompt:</strong> <span class="prompt-expandable">${(data.metadata.prompt || 'N/A').substring(0, 100)}${(data.metadata.prompt || '').length > 100 ? '...' : ''}</span><div class="prompt-full hidden" data-prompt="${(data.metadata.prompt || 'N/A').replace(/"/g, '&quot;')}"></div></div>
+               <p><strong>Model:</strong> ${data.metadata.model || data.metadata.upscale_mode || 'N/A'}</p>
              <p><strong>Size:</strong> ${data.metadata.size}</p>
              <p><strong>Steps:</strong> ${data.metadata.steps}</p>
              <p><strong>Seed:</strong> ${data.metadata.seed}</p>
@@ -809,15 +871,44 @@ async function checkServerStatus() {
       }
     }
 
-    function downloadImage() {
+ function downloadImage() {
       if (currentImage && currentMetadata) {
-     const link = document.createElement('a');
-        link.href = `data:image/png;base64,${currentImage}`;
-        const safeTimestamp = currentMetadata.timestamp.replace(/[:.]/g, '-').replace(/[\/\\*?<>|"']/g, '');
-        link.download = `image_${safeTimestamp}.png`;
-        link.click();
+      let link = document.createElement('a');
+      
+      if (typeof currentImage === 'object' && currentImageFilenames) {
+        let filename;
+        if (currentView === 'upscaled' && currentImageFilenames.upscaled) {
+          filename = currentImageFilenames.upscaled;
+        } else {
+          filename = currentImageFilenames.original || currentImageFilenames.upscaled;
+        }
+        if (filename) {
+          link.href = `${MIDDLEWARE_URL}/images/${filename}`;
+          link.download = filename;
+          link.click();
+          return;
+        }
       }
-    }
+      
+      let imageToDownload;
+      let downloadFilename = `image_${currentMetadata.timestamp.replace(/[:.]/g, '-').replace(/[\/\\*?<>|"']/g, '')}.png`;
+      
+      if (typeof currentImage === 'object' && currentImage.original) {
+        imageToDownload = currentImage.original;
+        if (currentView === 'upscaled' && currentImage.upscaled) {
+          imageToDownload = currentImage.upscaled;
+          downloadFilename = `upscaled_${currentMetadata.timestamp.replace(/[:.]/g, '-').replace(/[\/\\*?<>|"']/g, '')}.png`;
+        }
+      } else {
+        imageToDownload = currentImage;
+      }
+      
+      link = document.createElement('a');
+         link.href = `data:image/png;base64,${imageToDownload}`;
+         link.download = downloadFilename;
+         link.click();
+       }
+     }
 
     function togglePromptExpand(expandable) {
       const container = expandable.parentElement;
@@ -837,10 +928,19 @@ async function checkServerStatus() {
       }
     }
 
+  function toggleImageDisplay() {
+      if (currentImage && currentImage.upscaled) {
+        currentView = currentView === 'original' ? 'upscaled' : 'original';
+        els.generatedImage.src = `data:image/png;base64,${currentImage[currentView]}`;
+        els.toggleViewBtn.textContent = currentView === 'original' ? 'Show Upscaled' : 'Show Original';
+      }
+    }
+
     // Event Listeners
      els.promptAssistBtn.addEventListener('click', handlePromptAssist);
-     els.generateBtn.addEventListener('click', handleGenerate);
-     els.downloadBtn.addEventListener('click', downloadImage);
+ els.generateBtn.addEventListener('click', handleGenerate);
+      els.downloadBtn.addEventListener('click', downloadImage);
+      els.toggleViewBtn.addEventListener('click', toggleImageDisplay);
      
     document.addEventListener('click', (e) => {
         const expandable = e.target.closest('.prompt-expandable');
