@@ -232,6 +232,8 @@ class ImageStorage:
     def _ensure_dirs(self):
         os.makedirs(self.images_dir, exist_ok=True)
         os.makedirs(self.metadata_dir, exist_ok=True)
+        self.thumbs_dir = os.path.join(self.storage_dir, "thumbs")
+        os.makedirs(self.thumbs_dir, exist_ok=True)
 
     def _generate_filename(self) -> str:
         timestamp = datetime.now(UTC).strftime("%Y-%m-%d_%H-%M-%S")
@@ -269,7 +271,28 @@ class ImageStorage:
 
         logger.info("Image saved", filename=filename)
 
+        self.generate_thumbnail(filename)
+
         return filename
+
+    def generate_thumbnail(self, filename: str) -> str:
+        image_path = os.path.join(self.images_dir, filename)
+        if not os.path.exists(image_path):
+            logger.warning(
+                "Thumbnail generation skipped, image not found", filename=filename
+            )
+            return ""
+        thumb_filename = filename.rsplit(".", 1)[0] + ".jpg"
+        thumb_path = os.path.join(self.thumbs_dir, thumb_filename)
+        if os.path.exists(thumb_path):
+            logger.info("Thumbnail already exists", filename=thumb_filename)
+            return thumb_filename
+        with Image.open(image_path) as img:
+            img = img.convert("RGB")
+            img.thumbnail((128, 128), Image.Resampling.LANCZOS)
+            img.save(thumb_path, "JPEG", quality=85)
+        logger.info("Thumbnail generated", filename=thumb_filename, source=filename)
+        return thumb_filename
 
     def get_image(self, filename: str) -> Optional[Dict[str, Any]]:
         image_path = os.path.join(self.images_dir, filename)
@@ -425,7 +448,11 @@ async def handle_generate(request: web.Request) -> web.Response:
                 generation_time=f"{generation_time:.2f}s",
             )
 
-            response_data = {"filename": filename, "image": b64_image, "metadata": metadata}
+            response_data = {
+                "filename": filename,
+                "image": b64_image,
+                "metadata": metadata,
+            }
             logger.info("Generate response", filename=filename)
             return web.json_response(response_data)
 
@@ -457,6 +484,23 @@ async def handle_get_image(request: web.Request) -> web.Response:
         return web.json_response(image_data)
     except Exception as e:
         logger.error("Failed to get image", error=str(e))
+        return web.json_response({"error": str(e)}, status=500)
+
+
+async def handle_get_thumbnail(request: web.Request) -> web.Response:
+    try:
+        filename = request.match_info.get("filename")
+        if not filename:
+            return web.json_response({"error": "Filename required"}, status=400)
+        thumb_filename = filename.rsplit(".", 1)[0] + ".jpg"
+        thumb_path = os.path.join(image_storage.thumbs_dir, thumb_filename)
+        if not os.path.exists(thumb_path):
+            return web.json_response({"error": "Thumbnail not found"}, status=404)
+        with open(thumb_path, "rb") as f:
+            thumb_data = f.read()
+        return web.Response(body=thumb_data, content_type="image/jpeg")
+    except Exception as e:
+        logger.error("Failed to get thumbnail", error=str(e))
         return web.json_response({"error": str(e)}, status=500)
 
 
@@ -494,7 +538,10 @@ async def handle_upscale(request: web.Request) -> web.Response:
         original_filename = data.get("filename")
 
         logger.info(
-            "Upscale request received", mode=upscale_mode, image_len=len(image_b64), original_filename=original_filename
+            "Upscale request received",
+            mode=upscale_mode,
+            image_len=len(image_b64),
+            original_filename=original_filename,
         )
 
         if not image_b64:
@@ -505,7 +552,9 @@ async def handle_upscale(request: web.Request) -> web.Response:
             return web.json_response({"image": image_b64, "upscaled": False})
 
         if not original_filename:
-            original_filename = image_storage.save_image(image_b64, {"type": "original"})
+            original_filename = image_storage.save_image(
+                image_b64, {"type": "original"}
+            )
 
         model_name = ESRGAN_MODELS.get(upscale_mode)
         if not model_name:
@@ -564,7 +613,9 @@ async def handle_upscale(request: web.Request) -> web.Response:
         logger.info("Upscale successful", upscaled_len=len(upscaled_b64))
 
         original_metadata = image_storage.get_metadata(original_filename) or {}
-        logger.info("Original metadata", filename=original_filename, metadata=original_metadata)
+        logger.info(
+            "Original metadata", filename=original_filename, metadata=original_metadata
+        )
         upscaled_metadata = {
             **original_metadata,
             "type": "upscaled",
@@ -634,6 +685,7 @@ def create_app() -> web.Application:
     app.router.add_get("/images", handle_list_images)
     app.router.add_get("/images/metadata", handle_list_images_metadata)
     app.router.add_post("/upscale", handle_upscale)
+    app.router.add_get("/images/{filename}/thumb", handle_get_thumbnail)
     app.router.add_get("/images/{filename}", handle_get_image)
     app.router.add_get("/health", handle_health)
     return app

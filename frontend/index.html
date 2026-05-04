@@ -810,24 +810,21 @@ async function checkServerStatus() {
             `;
           }).join('');
           
-      async function loadThumbnail(img) {
-              try {
-                const response = await fetch(`${MIDDLEWARE_URL}/images/${img.filename}`);
-                const data = await response.json();
-                const imgEl = document.createElement('img');
-                imgEl.onload = () => {
-                  const thumbnail = els.historyGrid.querySelector(`[data-filename="${img.filename}"]`);
-                  if (thumbnail) {
-                    thumbnail.querySelector('.thumbnail-placeholder').style.display = 'none';
-                    thumbnail.appendChild(imgEl);
-                  }
-                };
-                imgEl.src = `data:image/png;base64,${data.image}`;
-              } catch (error) {
-                console.error(`Failed to load thumbnail for ${img.filename}:`, error);
-              }
+     async function loadThumbnail(img) {
+              const imgEl = document.createElement('img');
+              imgEl.onload = () => {
+                const thumbnail = els.historyGrid.querySelector(`[data-filename="${img.filename}"]`);
+                if (thumbnail) {
+                  thumbnail.querySelector('.thumbnail-placeholder').style.display = 'none';
+                  thumbnail.appendChild(imgEl);
+                }
+              };
+              imgEl.onerror = () => {
+                console.error(`Failed to load thumbnail for ${img.filename}`);
+              };
+              imgEl.src = `${MIDDLEWARE_URL}/images/${img.filename}/thumb`;
             }
-           
+            
            data.images.forEach(img => loadThumbnail(img));
         } else {
           els.historyGrid.innerHTML = '<p class="placeholder" style="grid-column: 1/-1;">No images yet</p>';
@@ -837,16 +834,21 @@ async function checkServerStatus() {
       }
     }
 
-    async function viewImage(filename) {
-      try {
-        const response = await fetch(`${MIDDLEWARE_URL}/images/${filename}`);
-        const data = await response.json();
-        
-        if (data.image) {
-            els.placeholderText.style.display = 'none';
-            els.generatedImage.src = `data:image/png;base64,${data.image}`;
-            els.generatedImage.style.display = 'block';
-            els.downloadBtn.style.display = 'block';
+async function viewImage(filename) {
+       try {
+         const response = await fetch(`${MIDDLEWARE_URL}/images/${filename}`);
+         const data = await response.json();
+         
+         if (data.image) {
+              els.placeholderText.style.display = 'none';
+              els.downloadBtn.style.display = 'block';
+              
+              const thumbSrc = `${MIDDLEWARE_URL}/images/${filename}/thumb`;
+              els.generatedImage.src = thumbSrc;
+              els.generatedImage.style.display = 'block';
+              
+              await new Promise(resolve => setTimeout(resolve, 100));
+              els.generatedImage.src = `data:image/png;base64,${data.image}`;
             
             currentImage = { original: data.image, upscaled: null };
             currentMetadata = data.metadata;
