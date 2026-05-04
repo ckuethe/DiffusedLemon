@@ -328,9 +328,12 @@ class ImageStorage:
                 return json.load(f)
         return None
 
-    def list_images_metadata(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def list_images_metadata(
+        self, limit: int = 50, offset: int = 0
+    ) -> List[Dict[str, Any]]:
         images: List[Dict[str, Any]] = []
-        for filename in sorted(os.listdir(self.images_dir), reverse=True)[:limit]:
+        all_filenames = sorted(os.listdir(self.images_dir), reverse=True)
+        for filename in all_filenames[offset : offset + limit]:
             if filename.endswith(".png"):
                 metadata_path = os.path.join(
                     self.metadata_dir, filename.replace(".png", ".json")
@@ -517,7 +520,8 @@ async def handle_list_images(request: web.Request) -> web.Response:
 async def handle_list_images_metadata(request: web.Request) -> web.Response:
     try:
         limit = int(request.query.get("limit", 50))
-        images = image_storage.list_images_metadata(limit)
+        offset = int(request.query.get("offset", 0))
+        images = image_storage.list_images_metadata(limit, offset)
         return web.json_response({"images": images})
     except Exception as e:
         logger.error("Failed to list images metadata", error=str(e))

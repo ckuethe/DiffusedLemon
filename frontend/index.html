@@ -245,7 +245,7 @@
 
     .history-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      grid-template-columns: repeat(8, 1fr);
       gap: 15px;
     }
 
@@ -487,6 +487,8 @@
       <div class="history-grid" id="historyGrid">
         <p class="placeholder" style="grid-column: 1/-1;">No images yet</p>
       </div>
+      <div id="loadingMore" style="display: none; text-align: center; padding: 20px; color: var(--text-light);">Loading more...</div>
+      <div id="scrollSentinel" style="height: 1px;"></div>
     </section>
   </div>
 
@@ -500,6 +502,9 @@
     let currentImageFilenames = null;
     let currentMetadata = null;
     let currentView = 'original';
+    let imageOffset = 0;
+    const IMAGE_BATCH_SIZE = 50;
+    let isLoadingMore = false;
 
     // DOM Elements
     const els = {
@@ -520,10 +525,12 @@
         generatedImage: document.getElementById('generatedImage'),
         spinner: document.getElementById('spinner'),
         imageInfo: document.getElementById('imageInfo'),
-        downloadBtn: document.getElementById('downloadBtn'),
+downloadBtn: document.getElementById('downloadBtn'),
         toggleViewBtn: document.getElementById('toggleViewBtn'),
-       historyGrid: document.getElementById('historyGrid')
-     };
+        historyGrid: document.getElementById('historyGrid'),
+        loadingMore: document.getElementById('loadingMore'),
+        scrollSentinel: document.getElementById('scrollSentinel')
+      };
 
     // Utility Functions
     function generateRandomSeed() {
@@ -788,55 +795,100 @@ async function checkServerStatus() {
        }
      }
 
-     async function loadHistory() {
-       try {
-        const response = await fetch(`${MIDDLEWARE_URL}/images/metadata?limit=50`);
-        const data = await response.json();
-        
-       if (data.images && data.images.length > 0) {
-          els.historyGrid.innerHTML = data.images.map((img, index) => {
-            const date = img.metadata.timestamp ? new Date(img.metadata.timestamp) : new Date();
-            const prompt = img.metadata.prompt ? img.metadata.prompt.substring(0, 50) + '...' : (img.metadata.type === 'upscaled' ? 'Upscaled image' : 'No prompt');
-            const model = img.metadata.model || img.metadata.upscale_mode || 'N/A';
-            return `
-              <div class="thumbnail" data-filename="${img.filename}" onclick="viewImage(this.dataset.filename)">
-                <div class="thumbnail-placeholder">Loading...</div>
-                <div class="prompt-preview">${prompt}</div>
-                <div class="thumbnail-info">
-                  <span>${date.toLocaleDateString()}</span>
-                  <span class="model-badge">${model}</span>
-                </div>
-              </div>
-            `;
-          }).join('');
-          
-     async function loadThumbnail(img) {
-              const imgEl = document.createElement('img');
-              imgEl.onload = () => {
-                const thumbnail = els.historyGrid.querySelector(`[data-filename="${img.filename}"]`);
-                if (thumbnail) {
-                  thumbnail.querySelector('.thumbnail-placeholder').style.display = 'none';
-                  thumbnail.appendChild(imgEl);
-                }
-              };
-              imgEl.onerror = () => {
-                console.error(`Failed to load thumbnail for ${img.filename}`);
-              };
-              imgEl.src = `${MIDDLEWARE_URL}/images/${img.filename}/thumb`;
-            }
-            
-           data.images.forEach(img => loadThumbnail(img));
-        } else {
-          els.historyGrid.innerHTML = '<p class="placeholder" style="grid-column: 1/-1;">No images yet</p>';
+    function loadThumbnail(img) {
+      const imgEl = document.createElement('img');
+      imgEl.onload = () => {
+        const thumbnail = els.historyGrid.querySelector(`[data-filename="${img.filename}"]`);
+        if (thumbnail) {
+          thumbnail.querySelector('.thumbnail-placeholder').style.display = 'none';
+          thumbnail.appendChild(imgEl);
         }
-      } catch (error) {
-        console.error('Failed to load history:', error);
-      }
+      };
+      imgEl.onerror = () => {
+        console.error(`Failed to load thumbnail for ${img.filename}`);
+      };
+      imgEl.src = `${MIDDLEWARE_URL}/images/${img.filename}/thumb`;
     }
 
-async function viewImage(filename) {
-       try {
-         const response = await fetch(`${MIDDLEWARE_URL}/images/${filename}`);
+    async function loadHistory() {
+        try {
+         const response = await fetch(`${MIDDLEWARE_URL}/images/metadata?limit=${IMAGE_BATCH_SIZE}&offset=${imageOffset}`);
+         const data = await response.json();
+        
+        if (data.images && data.images.length > 0) {
+           const existingPlaceholder = els.historyGrid.querySelector('.placeholder');
+           if (existingPlaceholder) {
+             els.historyGrid.innerHTML = '';
+           }
+           
+           els.historyGrid.insertAdjacentHTML('beforeend', data.images.map((img) => {
+             const date = img.metadata.timestamp ? new Date(img.metadata.timestamp) : new Date();
+             const prompt = img.metadata.prompt ? img.metadata.prompt.substring(0, 50) + '...' : (img.metadata.type === 'upscaled' ? 'Upscaled image' : 'No prompt');
+             const model = img.metadata.model || img.metadata.upscale_mode || 'N/A';
+             return `
+               <div class="thumbnail" data-filename="${img.filename}" onclick="viewImage(this.dataset.filename)">
+                 <div class="thumbnail-placeholder">Loading...</div>
+                 <div class="prompt-preview">${prompt}</div>
+                 <div class="thumbnail-info">
+                   <span>${date.toLocaleDateString()}</span>
+                   <span class="model-badge">${model}</span>
+                 </div>
+               </div>
+             `;
+           }).join(''));
+           
+           data.images.forEach(img => loadThumbnail(img));
+         }
+       } catch (error) {
+         console.error('Failed to load history:', error);
+       } finally {
+         els.loadingMore.style.display = 'none';
+         isLoadingMore = false;
+       }
+     }
+
+    async function loadMoreImages() {
+      if (isLoadingMore) return;
+      isLoadingMore = true;
+      els.loadingMore.style.display = 'block';
+      imageOffset += IMAGE_BATCH_SIZE;
+      await loadHistory();
+    }
+
+    // Infinite scroll observer
+    const scrollObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && !isLoadingMore) {
+          loadMoreImages();
+        }
+      });
+    }, { rootMargin: '200px' });
+
+    // Initialize
+    async function init() {
+       const serverOk = await checkServerStatus();
+       await loadModels();
+       loadHistory();
+       
+       // Set default size from localStorage, then fall back to config
+       let defaultSize = localStorage.getItem('diffused_lemon_size');
+       if (!defaultSize && serverConfig?.default_size) {
+         defaultSize = serverConfig.default_size;
+       }
+       if (defaultSize && els.sizeSelect.querySelector(`option[value="${defaultSize}"]`)) {
+         els.sizeSelect.value = defaultSize;
+       }
+       
+       if (!serverOk) {
+         showError('Server disconnected. Some features may not work.');
+       }
+       
+scrollObserver.observe(els.scrollSentinel);
+    }
+
+    async function viewImage(filename) {
+      try {
+        const response = await fetch(`${MIDDLEWARE_URL}/images/${filename}`);
          const data = await response.json();
          
          if (data.image) {
@@ -965,31 +1017,11 @@ async function viewImage(filename) {
           
          els.sizeSelect.addEventListener('change', () => {
             localStorage.setItem('diffused_lemon_size', els.sizeSelect.value);
-          });
+  });
 
-    // Initialize
-    async function init() {
-       const serverOk = await checkServerStatus();
-       await loadModels();
-       loadHistory();
-       
-       // Set default size from localStorage, then fall back to config
-       let defaultSize = localStorage.getItem('diffused_lemon_size');
-       if (!defaultSize && serverConfig?.default_size) {
-         defaultSize = serverConfig.default_size;
-       }
-       if (defaultSize && els.sizeSelect.querySelector(`option[value="${defaultSize}"]`)) {
-         els.sizeSelect.value = defaultSize;
-       }
-       
-       if (!serverOk) {
-         showError('Server disconnected. Some features may not work.');
-       }
-     }
+    init();
 
-   init();
-
-     window.viewImage = viewImage;
-  </script>
+    window.viewImage = viewImage;
+   </script>
 </body>
 </html>
