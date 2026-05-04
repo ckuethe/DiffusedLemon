@@ -492,10 +492,10 @@ async def handle_get_thumbnail(request: web.Request) -> web.Response:
         filename = request.match_info.get("filename")
         if not filename:
             return web.json_response({"error": "Filename required"}, status=400)
-        thumb_filename = filename.rsplit(".", 1)[0] + ".jpg"
-        thumb_path = os.path.join(image_storage.thumbs_dir, thumb_filename)
-        if not os.path.exists(thumb_path):
+        thumb_filename = image_storage.generate_thumbnail(filename)
+        if not thumb_filename:
             return web.json_response({"error": "Thumbnail not found"}, status=404)
+        thumb_path = os.path.join(image_storage.thumbs_dir, thumb_filename)
         with open(thumb_path, "rb") as f:
             thumb_data = f.read()
         return web.Response(body=thumb_data, content_type="image/jpeg")
