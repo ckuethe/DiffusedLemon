@@ -285,7 +285,6 @@ class ImageStorage:
         thumb_filename = filename.rsplit(".", 1)[0] + ".jpg"
         thumb_path = os.path.join(self.thumbs_dir, thumb_filename)
         if os.path.exists(thumb_path):
-            logger.info("Thumbnail already exists", filename=thumb_filename)
             return thumb_filename
         with Image.open(image_path) as img:
             img = img.convert("RGB")
