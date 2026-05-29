@@ -656,6 +656,7 @@ async def handle_health(request: web.Request) -> web.Response:
 
     unload_delay = config.get("flux_assistant_unload_delay", 0)
     default_size = config.get("default_size", "512x512")
+    prompt_assist_model = config.get("prompt_assist_model")
 
     return web.json_response(
         {
@@ -664,6 +665,7 @@ async def handle_health(request: web.Request) -> web.Response:
             "storage_dir": config.storage_dir,
             "flux_assistant_unload_delay": unload_delay,
             "default_size": default_size,
+            "prompt_assist_model": prompt_assist_model,
         }
     )
 
