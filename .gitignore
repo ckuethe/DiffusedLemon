@@ -26,3 +26,5 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+session*.md
+ses_*
