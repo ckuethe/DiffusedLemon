@@ -630,9 +630,33 @@ async def handle_index(request: web.Request) -> web.Response:
     return web.Response(text="Frontend not found", status=404)
 
 
+async def handle_app_js(request: web.Request) -> web.Response:
+    frontend_path = os.path.join(
+        os.path.dirname(__file__), "..", "frontend", "app.js"
+    )
+    if os.path.exists(frontend_path):
+        with open(frontend_path, "r") as f:
+            js_content = f.read()
+        return web.Response(text=js_content, content_type="application/javascript")
+    return web.Response(text="JavaScript not found", status=404)
+
+
+async def handle_style_css(request: web.Request) -> web.Response:
+    frontend_path = os.path.join(
+        os.path.dirname(__file__), "..", "frontend", "style.css"
+    )
+    if os.path.exists(frontend_path):
+        with open(frontend_path, "r") as f:
+            css_content = f.read()
+        return web.Response(text=css_content, content_type="text/css")
+    return web.Response(text="CSS not found", status=404)
+
+
 def create_app() -> web.Application:
     app = web.Application()
     app.router.add_get("/", handle_index)
+    app.router.add_get("/app.js", handle_app_js)
+    app.router.add_get("/style.css", handle_style_css)
     app.router.add_post("/prompt-assist", handle_prompt_assist)
     app.router.add_post("/generate", handle_generate)
     app.router.add_get("/models", handle_get_models)
