@@ -28,6 +28,7 @@ class LemonadeClient:
         self.server_uri = server_uri or config.server_uri
         self.auth_token = config.auth_token
         self._session: Optional[aiohttp.ClientSession] = None
+        self._current_model: Optional[str] = None
 
     async def __aenter__(self):
         self._session = aiohttp.ClientSession()
@@ -128,6 +129,65 @@ class LemonadeClient:
                 f"Reusing flux assistant session: {cls._flux_assistant_session}"
             )
         return cls._flux_assistant_session
+
+    async def unload_model(self, model: str) -> None:
+        logger.debug("Attempting to unload model", model=model)
+        try:
+            payload = {"model_name": model}
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.server_uri}/api/v1/unload",
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                ) as response:
+                    if response.status == 200:
+                        logger.info(
+                            "Model unloaded from Lemonade",
+                            model=model,
+                        )
+                        if self._current_model == model:
+                            self._current_model = None
+                    else:
+                        error_text = await response.text()
+                        logger.warning(
+                            "Failed to unload model",
+                            status=response.status,
+                            error=error_text,
+                        )
+        except Exception as e:
+            logger.warning(
+                "Could not unload model from Lemonade",
+                error=str(e),
+            )
+
+    async def set_model(self, model: str) -> None:
+        logger.debug("Setting model", model=model)
+        self._current_model = model
+        try:
+            payload = {"model_name": model}
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.server_uri}/api/v1/load",
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                ) as response:
+                    if response.status == 200:
+                        logger.info(
+                            "Model loaded from Lemonade",
+                            model=model,
+                        )
+                    else:
+                        error_text = await response.text()
+                        logger.warning(
+                            "Failed to load model",
+                            status=response.status,
+                            error=error_text,
+                        )
+        except Exception as e:
+            logger.warning(
+                "Could not load model from Lemonade",
+                error=str(e),
+            )
 
     @classmethod
     async def maybe_unload_flux_assistant(cls) -> None:
@@ -467,7 +527,9 @@ async def handle_get_models(request: web.Request) -> web.Response:
     try:
         async with LemonadeClient() as client:
             models = await client.get_models()
-            return web.json_response({"models": models})
+            # Filter to only show models with 'image' label
+            image_models = [model for model in models if model.get('labels') and 'image' in model['labels']]
+            return web.json_response({"models": image_models})
     except Exception as e:
         logger.error("Failed to get models", error=str(e))
         return web.json_response({"error": str(e)}, status=500)
@@ -527,129 +589,6 @@ async def handle_list_images_metadata(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=500)
 
 
-ESRGAN_MODELS = {
-    "photo": "RealESRGAN-x4plus",
-    "anime": "RealESRGAN-x4plus-anime",
-}
-
-
-async def handle_upscale(request: web.Request) -> web.Response:
-    try:
-        data = await request.json()
-        image_b64 = data.get("image")
-        upscale_mode = data.get("mode", "off")
-        original_filename = data.get("filename")
-
-        logger.info(
-            "Upscale request received",
-            mode=upscale_mode,
-            image_len=len(image_b64),
-            original_filename=original_filename,
-        )
-
-        if not image_b64:
-            return web.json_response({"error": "Image data required"}, status=400)
-
-        if upscale_mode == "off":
-            logger.info("Upscale mode is off, returning original")
-            return web.json_response({"image": image_b64, "upscaled": False})
-
-        if not original_filename:
-            original_filename = image_storage.save_image(
-                image_b64, {"type": "original"}
-            )
-
-        model_name = ESRGAN_MODELS.get(upscale_mode)
-        if not model_name:
-            return web.json_response(
-                {"error": f"Invalid upscaler mode: {upscale_mode}"}, status=400
-            )
-
-        logger.info(
-            "Sending upscale request to backend",
-            model=model_name,
-            url=f"{config.server_uri}/api/v1/images/upscale",
-        )
-
-        async with aiohttp.ClientSession() as session:
-            payload = {
-                "image": image_b64,
-                "model": model_name,
-            }
-            async with session.post(
-                f"{config.server_uri}/api/v1/images/upscale",
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            ) as response:
-                response_text = await response.text()
-                logger.info(
-                    f"Upscale response: status={response.status}, body={response_text[:500]}"
-                )
-                if response.status >= 400:
-                    logger.error(
-                        f"HTTP {response.status} from upscale: {response_text}"
-                    )
-                    return web.json_response(
-                        {"error": f"Upscale failed: {response_text}"}, status=500
-                    )
-                result = json.loads(response_text)
-
-        logger.info("Parsed upscale response keys", keys=list(result.keys()))
-        upscaled_b64 = result.get("image") or result.get("b64_json")
-        if (
-            not upscaled_b64
-            and "data" in result
-            and isinstance(result["data"], list)
-            and len(result["data"]) > 0
-        ):
-            upscaled_b64 = result["data"][0].get("b64_json")
-        if not upscaled_b64:
-            logger.warning("No image data in upscale response", response=result)
-            return web.json_response(
-                {
-                    "error": "No image data in upscale response",
-                    "keys": list(result.keys()),
-                },
-                status=500,
-            )
-
-        logger.info("Upscale successful", upscaled_len=len(upscaled_b64))
-
-        original_metadata = image_storage.get_metadata(original_filename) or {}
-        logger.info(
-            "Original metadata", filename=original_filename, metadata=original_metadata
-        )
-        upscaled_metadata = {
-            **original_metadata,
-            "type": "upscaled",
-            "upscale_mode": upscale_mode,
-        }
-        logger.info("Upscaled metadata before save", metadata=upscaled_metadata)
-        upscaled_filename = image_storage.save_image(
-            upscaled_b64,
-            upscaled_metadata,
-            base_filename=original_filename,
-            suffix="upscaled",
-        )
-
-        logger.info(
-            "Saved images", original=original_filename, upscaled=upscaled_filename
-        )
-
-        return web.json_response(
-            {
-                "image": upscaled_b64,
-                "upscaled": True,
-                "original_filename": original_filename,
-                "upscaled_filename": upscaled_filename,
-            }
-        )
-
-    except Exception as e:
-        logger.error("Upscale failed", error=str(e), exc_info=True)
-        return web.json_response({"error": str(e)}, status=500)
-
-
 async def handle_health(request: web.Request) -> web.Response:
     async with LemonadeClient() as client:
         available = await client.is_server_available()
@@ -657,6 +596,7 @@ async def handle_health(request: web.Request) -> web.Response:
     unload_delay = config.get("flux_assistant_unload_delay", 0)
     default_size = config.get("default_size", "512x512")
     prompt_assist_model = config.get("prompt_assist_model")
+    default_model = config.get("default_model", "")
 
     return web.json_response(
         {
@@ -666,6 +606,7 @@ async def handle_health(request: web.Request) -> web.Response:
             "flux_assistant_unload_delay": unload_delay,
             "default_size": default_size,
             "prompt_assist_model": prompt_assist_model,
+            "default_model": default_model,
         }
     )
 
@@ -689,7 +630,6 @@ def create_app() -> web.Application:
     app.router.add_get("/models", handle_get_models)
     app.router.add_get("/images", handle_list_images)
     app.router.add_get("/images/metadata", handle_list_images_metadata)
-    app.router.add_post("/upscale", handle_upscale)
     app.router.add_get("/images/{filename}/thumb", handle_get_thumbnail)
     app.router.add_get("/images/{filename}", handle_get_image)
     app.router.add_get("/health", handle_health)
