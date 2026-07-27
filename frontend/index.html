@@ -415,15 +415,6 @@
              <textarea id="promptInput" placeholder="Describe the image you want to generate..."></textarea>
            </div>
 
-         <div class="form-group">
-           <label for="upscalerSelect">Upscaler</label>
-           <select id="upscalerSelect">
-             <option value="off">Off</option>
-             <option value="photo">Photo</option>
-             <option value="anime">Anime</option>
-           </select>
-         </div>
-
          <div class="button-group">
            <button id="promptAssistBtn" class="secondary">
              🎨 Prompt Assist
@@ -433,25 +424,76 @@
            </button>
          </div>
 
+         <div class="button-group" style="margin-top: 10px;">
+            <button id="unloadModelBtn" class="secondary">
+              🧹 Unload Model
+            </button>
+         </div>
+
          <div class="error-message" id="errorMessage"></div>
        </div>
 
        <div class="card">
          <h2>Parameters</h2>
-          <div class="form-group">
-            <label for="sizeSelect">Image Size</label>
-            <select id="sizeSelect">
-              <option value="256x256">256x256</option>
-              <option value="512x512" selected>512x512</option>
-              <option value="768x768">768x768</option>
-              <option value="1024x1024">1024x1024</option>
+         <div class="form-group">
+            <label for="sizeHeight">Height</label>
+            <select id="heightSelect">
+              <option value="1024">1024</option>
+              <option value="768">768</option>
+              <option value="640">640</option>
+              <option value="512">512</option>
+              <option value="384">384</option>
+              <option value="256">256</option>
+              <option value="128">128</option>
+              <option value="64">64</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label for="stepsInput">Steps</label>
-            <input type="range" id="stepsInput" min="4" max="50" value="20">
-            <span id="stepsValue">20</span>
+            <label for="sizeWidth">Width</label>
+            <select id="widthSelect">
+              <option value="1024">1024</option>
+              <option value="768">768</option>
+              <option value="640">640</option>
+              <option value="512">512</option>
+              <option value="384">384</option>
+              <option value="256">256</option>
+              <option value="128">128</option>
+              <option value="64">64</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="stepsDropdown">Steps (optional)</label>
+            <select id="stepsDropdown">
+              <option value="">Auto</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+              <option value="11">11</option>
+              <option value="12">12</option>
+              <option value="13">13</option>
+              <option value="14">14</option>
+              <option value="15">15</option>
+              <option value="16">16</option>
+              <option value="17">17</option>
+              <option value="18">18</option>
+              <option value="19">19</option>
+              <option value="20">20</option>
+              <option value="25">25</option>
+              <option value="30">30</option>
+              <option value="35">35</option>
+              <option value="40">40</option>
+              <option value="45">45</option>
+              <option value="50">50</option>
+            </select>
           </div>
 
           <div class="form-group">
@@ -461,6 +503,12 @@
               🎲 Random Seed
             </button>
           </div>
+
+          <div class="form-group">
+            <label for="cfgInput">CFG Scale (optional)</label>
+            <input type="number" id="cfgInput" placeholder="Optional" min="0" step="0.1" max="4.0">
+          </div>
+
         </div>
       </aside>
 
@@ -477,18 +525,14 @@
             <p class="placeholder">Generation details will appear here</p>
           </div>
           <div class="button-group" id="downloadButtons" style="margin-top: 15px;">
-            <button id="toggleViewBtn" class="secondary" style="display: none;">
-              Toggle Original/Upscaled
-            </button>
             <button id="downloadBtn" class="primary" style="display: none;">
               ⬇ Download
             </button>
           </div>
         </div>
       </main>
-    </div>
 
-    <section class="history-section card">
+      <section class="history-section card">
       <h2>Image History</h2>
       <div class="history-grid" id="historyGrid">
         <p class="placeholder" style="grid-column: 1/-1;">No images yet</p>
@@ -507,7 +551,6 @@
     let currentImage = null;
     let currentImageFilenames = null;
     let currentMetadata = null;
-    let currentView = 'original';
     let imageOffset = 0;
     const IMAGE_BATCH_SIZE = 50;
     let isLoadingMore = false;
@@ -520,23 +563,23 @@
       promptInput: document.getElementById('promptInput'),
       promptAssistBtn: document.getElementById('promptAssistBtn'),
       generateBtn: document.getElementById('generateBtn'),
-      upscalerSelect: document.getElementById('upscalerSelect'),
       errorMessage: document.getElementById('errorMessage'),
-      sizeSelect: document.getElementById('sizeSelect'),
-      stepsInput: document.getElementById('stepsInput'),
-      stepsValue: document.getElementById('stepsValue'),
+      heightSelect: document.getElementById('heightSelect'),
+      widthSelect: document.getElementById('widthSelect'),
+      stepsDropdown: document.getElementById('stepsDropdown'),
       seedInput: document.getElementById('seedInput'),
       randomSeedBtn: document.getElementById('randomSeedBtn'),
-    placeholderText: document.getElementById('placeholderText'),
-        generatedImage: document.getElementById('generatedImage'),
-        spinner: document.getElementById('spinner'),
-        imageInfo: document.getElementById('imageInfo'),
-downloadBtn: document.getElementById('downloadBtn'),
-        toggleViewBtn: document.getElementById('toggleViewBtn'),
-        historyGrid: document.getElementById('historyGrid'),
-        loadingMore: document.getElementById('loadingMore'),
-        scrollSentinel: document.getElementById('scrollSentinel')
-      };
+      placeholderText: document.getElementById('placeholderText'),
+      generatedImage: document.getElementById('generatedImage'),
+      spinner: document.getElementById('spinner'),
+      imageInfo: document.getElementById('imageInfo'),
+       downloadBtn: document.getElementById('downloadBtn'),
+      historyGrid: document.getElementById('historyGrid'),
+      loadingMore: document.getElementById('loadingMore'),
+      scrollSentinel: document.getElementById('scrollSentinel'),
+      unloadModelBtn: document.getElementById('unloadModelBtn'),
+      cfgInput: document.getElementById('cfgInput'),
+      }
 
     // Utility Functions
     function generateRandomSeed() {
@@ -682,8 +725,10 @@ if (data.models) {
     async function handleGenerate() {
       const prompt = els.promptInput.value.trim();
       const model = els.modelSelect.value;
-      const size = els.sizeSelect.value;
-      const steps = parseInt(els.stepsInput.value);
+      const height = els.heightSelect.value;
+      const width = els.widthSelect.value;
+      const size = `${width}x${height}`;
+       const steps = els.stepsDropdown.value ? parseInt(els.stepsDropdown.value) : 4;
       let seed = els.seedInput.value.trim();
       
       if (!prompt) {
@@ -715,7 +760,8 @@ if (data.models) {
             size,
             steps,
             seed,
-            original_prompt: els.promptInput.dataset.original || undefined
+            original_prompt: els.promptInput.dataset.original || undefined,
+            cfg_scale: els.cfgInput.value ? parseFloat(els.cfgInput.value) : undefined
           })
         });
 
@@ -723,62 +769,25 @@ if (data.models) {
           throw new Error('Failed to generate image');
         }
 
-  const data = await response.json();
-        
+        const data = await response.json();
+
         currentMetadata = data.metadata;
         els.promptInput.dataset.promptAssisted = undefined;
         els.promptInput.classList.remove('expanded');
         els.promptInput.dataset.original = undefined;
-        
-        const upscaleMode = els.upscalerSelect.value;
-        const originalImage = data.image;
-        let upscaledImage = null;
-        
+
         els.placeholderText.style.display = 'none';
         els.generatedImage.src = `data:image/png;base64,${data.image}`;
         els.generatedImage.style.display = 'block';
         els.downloadBtn.style.display = 'block';
-        
-        if (upscaleMode !== 'off') {
-          els.spinner.style.display = 'block';
-          try {
-            console.log('Sending upscale request with filename:', data.filename);
-            const upscaleResponse = await fetch(`${MIDDLEWARE_URL}/upscale`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ image: data.image, mode: upscaleMode, filename: data.filename })
-            });
-            if (upscaleResponse.ok) {
-              const upscaleData = await upscaleResponse.json();
-              if (upscaleData.image) {
-                upscaledImage = upscaleData.image;
-                els.generatedImage.src = `data:image/png;base64,${upscaledImage}`;
-                currentImageFilenames.upscaled = upscaleData.upscaled_filename;
-                currentImageFilenames.original = upscaleData.original_filename;
-              }
-            }
-          } catch (error) {
-            console.error('Upscale failed:', error);
-          } finally {
-            els.spinner.style.display = 'none';
-          }
-        }
-        
-        currentImage = { original: originalImage, upscaled: upscaledImage };
-        currentImageFilenames = { original: null, upscaled: null };
-        currentView = 'original';
-        
-        if (upscaledImage) {
-          els.toggleViewBtn.style.display = 'block';
-          els.toggleViewBtn.textContent = 'Show Upscaled';
-        } else {
-          els.toggleViewBtn.style.display = 'none';
-        }
-        
+
+        currentImage = { original: data.image };
+        currentImageFilenames = { original: null };
+
         const date = new Date(data.metadata.timestamp);
         const generationTime = data.metadata.generation_time ? `${data.metadata.generation_time}s` : 'N/A';
         els.imageInfo.innerHTML = `
-              <div class="prompt-container"><strong>Prompt:</strong> <span class="prompt-expandable">${data.metadata.prompt.substring(0, 100)}${data.metadata.prompt.length > 100 ? '...' : ''}</span><div class="prompt-full hidden" data-prompt="${data.metadata.prompt.replace(/"/g, '&quot;')}"></div></div>
+              <div class="prompt-container"><strong>Prompt:</strong> <span class="prompt-expandable">${data.metadata.prompt.substring(0, 100)}${data.metadata.prompt.length > 100 ? '...' : ''}</span><div class="prompt-full hidden" data-prompt="${data.metadata.prompt.replace(/\\"/g, '&quot;')}"></div></div>
             <p><strong>Model:</strong> ${data.metadata.model}</p>
           <p><strong>Size:</strong> ${data.metadata.size}</p>
           <p><strong>Steps:</strong> ${data.metadata.steps}</p>
@@ -787,19 +796,19 @@ if (data.models) {
           <p><strong>Generation time:</strong> ${generationTime}</p>
           ${data.metadata.prompt_assisted ? '<p><strong>💡 Prompt was assist expanded</strong></p>' : ''}
         `;
-        
+
         // Save model preference
         localStorage.setItem('diffused_lemon_model', model);
-        
+
         // Refresh history
          loadHistory();
-         
-       } catch (error) {
-         showError(error.message);
-       } finally {
-         showLoading(false);
-         els.placeholderText.style.display = 'none';
-       }
+
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        showLoading(false);
+        els.placeholderText.style.display = 'none';
+      }
      }
 
     function loadThumbnail(img) {
@@ -830,7 +839,7 @@ if (data.models) {
            
            els.historyGrid.insertAdjacentHTML('beforeend', data.images.map((img) => {
              const date = img.metadata.timestamp ? new Date(img.metadata.timestamp) : new Date();
-             const prompt = img.metadata.prompt ? img.metadata.prompt.substring(0, 50) + '...' : (img.metadata.type === 'upscaled' ? 'Upscaled image' : 'No prompt');
+              const prompt = img.metadata.prompt ? img.metadata.prompt.substring(0, 50) + '...' : 'No prompt';
              const model = img.metadata.model || img.metadata.upscale_mode || 'N/A';
              return `
                <div class="thumbnail" data-filename="${img.filename}" onclick="viewImage(this.dataset.filename)">
@@ -877,14 +886,25 @@ if (data.models) {
        await loadModels();
        loadHistory();
        
-       // Set default size from localStorage, then fall back to config
-       let defaultSize = localStorage.getItem('diffused_lemon_size');
-       if (!defaultSize && serverConfig?.default_size) {
-         defaultSize = serverConfig.default_size;
-       }
-       if (defaultSize && els.sizeSelect.querySelector(`option[value="${defaultSize}"]`)) {
-         els.sizeSelect.value = defaultSize;
-       }
+        // Set default size from localStorage, then fall back to config
+        let defaultSize = null;
+        const storedWidth = localStorage.getItem('diffused_lemon_width');
+        const storedHeight = localStorage.getItem('diffused_lemon_height');
+        
+        if (storedWidth && storedHeight) {
+          defaultSize = `${storedWidth}-${storedHeight}`;
+        } else if (serverConfig?.default_size) {
+          defaultSize = serverConfig.default_size;
+          if (defaultSize) {
+            const [width, height] = defaultSize.split('-');
+            if (els.widthSelect.querySelector(`option[value="${width}"]`)) {
+              els.widthSelect.value = width;
+            }
+            if (els.heightSelect.querySelector(`option[value="${height}"]`)) {
+              els.heightSelect.value = height;
+            }
+          }
+        }
        
        if (!serverOk) {
          showError('Server disconnected. Some features may not work.');
@@ -909,10 +929,8 @@ scrollObserver.observe(els.scrollSentinel);
               await new Promise(resolve => setTimeout(resolve, 100));
               els.generatedImage.src = `data:image/png;base64,${data.image}`;
             
-            currentImage = { original: data.image, upscaled: null };
+            currentImage = { original: data.image };
             currentMetadata = data.metadata;
-            currentView = 'original';
-            els.toggleViewBtn.style.display = 'none';
            
            const date = data.metadata.timestamp ? new Date(data.metadata.timestamp) : new Date();
            const generationTime = data.metadata.generation_time ? `${data.metadata.generation_time}s` : 'N/A';
@@ -924,7 +942,7 @@ scrollObserver.observe(els.scrollSentinel);
              <p><strong>Seed:</strong> ${data.metadata.seed}</p>
              <p><strong>Generated:</strong> ${date.toLocaleString()}</p>
              <p><strong>Generation time:</strong> ${generationTime}</p>
-             ${data.metadata.prompt_assisted ? '<p><strong>💡 Prompt was assist expanded</strong></p>' : ''}
+${data.metadata.prompt_assisted ? "<p><strong>💡 Prompt was assist expanded</strong></p>" : ''}
            `;
          }
       } catch (error) {
@@ -932,44 +950,29 @@ scrollObserver.observe(els.scrollSentinel);
       }
     }
 
- function downloadImage() {
-      if (currentImage && currentMetadata) {
-      let link = document.createElement('a');
-      
-      if (typeof currentImage === 'object' && currentImageFilenames) {
-        let filename;
-        if (currentView === 'upscaled' && currentImageFilenames.upscaled) {
-          filename = currentImageFilenames.upscaled;
-        } else {
-          filename = currentImageFilenames.original || currentImageFilenames.upscaled;
-        }
-        if (filename) {
-          link.href = `${MIDDLEWARE_URL}/images/${filename}`;
-          link.download = filename;
-          link.click();
-          return;
-        }
-      }
-      
-      let imageToDownload;
-      let downloadFilename = `image_${currentMetadata.timestamp.replace(/[:.]/g, '-').replace(/[\/\\*?<>|"']/g, '')}.png`;
-      
-      if (typeof currentImage === 'object' && currentImage.original) {
-        imageToDownload = currentImage.original;
-        if (currentView === 'upscaled' && currentImage.upscaled) {
-          imageToDownload = currentImage.upscaled;
-          downloadFilename = `upscaled_${currentMetadata.timestamp.replace(/[:.]/g, '-').replace(/[\/\\*?<>|"']/g, '')}.png`;
-        }
-      } else {
-        imageToDownload = currentImage;
-      }
-      
-      link = document.createElement('a');
-         link.href = `data:image/png;base64,${imageToDownload}`;
-         link.download = downloadFilename;
-         link.click();
+  function downloadImage() {
+       if (currentImage && currentMetadata) {
+       let link = document.createElement('a');
+       
+       if (typeof currentImage === 'object' && currentImageFilenames) {
+         let filename = currentImageFilenames.original;
+         if (filename) {
+           link.href = `${MIDDLEWARE_URL}/images/${filename}`;
+           link.download = filename;
+           link.click();
+           return;
+         }
        }
-     }
+       
+       let imageToDownload = typeof currentImage === 'object' ? currentImage.original : currentImage;
+       let downloadFilename = `image_${currentMetadata.timestamp.replace(/[:.]/g, '-').replace(/[\\/\\\\*?<\"|>"\s]/g, '')}.png`;
+       
+       link = document.createElement('a');
+          link.href = `data:image/png;base64,${imageToDownload}`;
+          link.download = downloadFilename;
+          link.click();
+        }
+      }
 
     function togglePromptExpand(expandable) {
       const container = expandable.parentElement;
@@ -989,19 +992,9 @@ scrollObserver.observe(els.scrollSentinel);
       }
     }
 
-  function toggleImageDisplay() {
-      if (currentImage && currentImage.upscaled) {
-        currentView = currentView === 'original' ? 'upscaled' : 'original';
-        els.generatedImage.src = `data:image/png;base64,${currentImage[currentView]}`;
-        els.toggleViewBtn.textContent = currentView === 'original' ? 'Show Upscaled' : 'Show Original';
-      }
-    }
-
-    // Event Listeners
-     els.promptAssistBtn.addEventListener('click', handlePromptAssist);
- els.generateBtn.addEventListener('click', handleGenerate);
+      els.promptAssistBtn.addEventListener('click', handlePromptAssist);
+      els.generateBtn.addEventListener('click', handleGenerate);
       els.downloadBtn.addEventListener('click', downloadImage);
-      els.toggleViewBtn.addEventListener('click', toggleImageDisplay);
      
     document.addEventListener('click', (e) => {
         const expandable = e.target.closest('.prompt-expandable');
@@ -1010,21 +1003,20 @@ scrollObserver.observe(els.scrollSentinel);
         }
       });
      
-     els.randomSeedBtn.addEventListener('click', () => {
-       els.seedInput.value = generateRandomSeed();
-     });
-     
-     els.stepsInput.addEventListener('input', () => {
-       els.stepsValue.textContent = els.stepsInput.value;
-     });
-     
-        els.modelSelect.addEventListener('change', () => {
-            localStorage.setItem('diffused_lemon_model', els.modelSelect.value);
+      els.randomSeedBtn.addEventListener('click', () => {
+        els.seedInput.value = generateRandomSeed();
+      });
+      
+         els.modelSelect.addEventListener('change', () => {
+             localStorage.setItem('diffused_lemon_model', els.modelSelect.value);
+           });
+           
+          els.widthSelect.addEventListener('change', () => {
+             localStorage.setItem('diffused_lemon_width', els.widthSelect.value);
           });
-          
-         els.sizeSelect.addEventListener('change', () => {
-            localStorage.setItem('diffused_lemon_size', els.sizeSelect.value);
-  });
+          els.heightSelect.addEventListener('change', () => {
+             localStorage.setItem('diffused_lemon_height', els.heightSelect.value);
+          });
 
     init();
 

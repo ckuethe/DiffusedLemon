@@ -453,7 +453,9 @@ async def handle_generate(request: web.Request) -> web.Response:
     try:
         data = await request.json()
 
-        required_fields = ["prompt", "model", "size", "steps", "seed"]
+        required_fields = ["prompt", "model", "size", "seed"]
+        optional_fields = ["steps", "cfg_scale"]
+
         missing = [f for f in required_fields if f not in data]
         if missing:
             return web.json_response(
@@ -529,6 +531,12 @@ async def handle_get_models(request: web.Request) -> web.Response:
             models = await client.get_models()
             # Filter to only show models with 'image' label
             image_models = [model for model in models if model.get('labels') and 'image' in model['labels']]
+            # Also include the prompt assist model if it exists and is not already in the list
+            prompt_assist_model = config.get("prompt_assist_model")
+            if prompt_assist_model:
+                prompt_assist = next((model for model in models if model.get('id') == prompt_assist_model), None)
+                if prompt_assist and prompt_assist not in image_models:
+                    image_models.append(prompt_assist)
             return web.json_response({"models": image_models})
     except Exception as e:
         logger.error("Failed to get models", error=str(e))
