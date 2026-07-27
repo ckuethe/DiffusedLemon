@@ -100,29 +100,29 @@ async function loadModels() {
        try {
          const response = await fetch(`${MIDDLEWARE_URL}/models`);
          const data = await response.json();
-         
+
 if (data.models) {
             models = data.models;
-            
+
             // Check if prompt assist model is available
             const promptAssistModel = serverConfig?.prompt_assist_model;
             const promptAssistAvailable = promptAssistModel && models.some(m => m.id === promptAssistModel);
-            
+
             // Filter for image generation models (excluding prompt assist model from list)
             const imageModels = models.filter(m => 
               (m.labels?.includes('image') || m.id?.toLowerCase().includes('sd') || m.id?.toLowerCase().includes('flux')) && m.id !== promptAssistModel
             );
-            
+
             els.modelSelect.innerHTML = imageModels.length > 0 
               ? imageModels.map(m => `<option value="${m.id}">${m.id}</option>`).join('')
               : '<option value="">No image models found</option>';
-            
+
             // Set default model from localStorage
             const defaultModel = localStorage.getItem('diffused_lemon_model') || 'SD-Turbo';
             if (imageModels.find(m => m.id === defaultModel)) {
               els.modelSelect.value = defaultModel;
             }
-            
+
             // Update prompt assist button based on availability
             if (promptAssistAvailable) {
               els.promptAssistBtn.disabled = false;
@@ -159,16 +159,16 @@ async function handlePromptAssist() {
          }
 
          const data = await response.json();
-         
+
          if (!data.expanded_prompt || !data.original_prompt) {
            throw new Error('Invalid response from prompt assist');
          }
-         
+
           els.promptInput.value = data.expanded_prompt;
           els.promptInput.classList.add('expanded');
           els.promptInput.dataset.original = data.original_prompt;
           els.promptInput.dataset.promptAssisted = 'true';
-          
+
           showError('Prompt expanded! You can edit it before generating.');
        } catch (error) {
          showError(error.message);
@@ -185,17 +185,17 @@ async function handleGenerate() {
        const size = `${width}x${height}`;
         const steps = els.stepsDropdown.value ? parseInt(els.stepsDropdown.value) : 4;
        let seed = els.seedInput.value.trim();
-       
+
        if (!prompt) {
          showError('Please enter a prompt');
          return;
        }
-       
+
        if (!model) {
          showError('Please select a model');
          return;
        }
-       
+
        if (!seed) {
          seed = generateRandomSeed();
          els.seedInput.value = seed;
@@ -285,13 +285,13 @@ async function handleGenerate() {
          try {
           const response = await fetch(`${MIDDLEWARE_URL}/images/metadata?limit=${IMAGE_BATCH_SIZE}&offset=${imageOffset}`);
           const data = await response.json();
-         
+
          if (data.images && data.images.length > 0) {
             const existingPlaceholder = els.historyGrid.querySelector('.placeholder');
             if (existingPlaceholder) {
               els.historyGrid.innerHTML = '';
             }
-            
+
             els.historyGrid.insertAdjacentHTML('beforeend', data.images.map((img) => {
               const date = img.metadata.timestamp ? new Date(img.metadata.timestamp) : new Date();
                const prompt = img.metadata.prompt ? img.metadata.prompt.substring(0, 50) + '...' : 'No prompt';
@@ -307,7 +307,7 @@ async function handleGenerate() {
                 </div>
               `;
             }).join(''));
-            
+
             data.images.forEach(img => loadThumbnail(img));
           }
         } catch (error) {
@@ -340,12 +340,12 @@ async function handleGenerate() {
         const serverOk = await checkServerStatus();
         await loadModels();
         loadHistory();
-        
+
          // Set default size from localStorage, then fall back to config
          let defaultSize = null;
          const storedWidth = localStorage.getItem('diffused_lemon_width');
          const storedHeight = localStorage.getItem('diffused_lemon_height');
-         
+
          if (storedWidth && storedHeight) {
            defaultSize = `${storedWidth}-${storedHeight}`;
          } else if (serverConfig?.default_size) {
@@ -360,11 +360,11 @@ async function handleGenerate() {
              }
            }
          }
-        
+
         if (!serverOk) {
           showError('Server disconnected. Some features may not work.');
         }
-        
+
      scrollObserver.observe(els.scrollSentinel);
     }
 
@@ -372,21 +372,21 @@ async function handleGenerate() {
        try {
          const response = await fetch(`${MIDDLEWARE_URL}/images/${filename}`);
           const data = await response.json();
-          
+
           if (data.image) {
                els.placeholderText.style.display = 'none';
                els.downloadBtn.style.display = 'block';
-               
+
                const thumbSrc = `${MIDDLEWARE_URL}/images/${filename}/thumb`;
                els.generatedImage.src = thumbSrc;
                els.generatedImage.style.display = 'block';
-               
+
                await new Promise(resolve => setTimeout(resolve, 100));
                els.generatedImage.src = `data:image/png;base64,${data.image}`;
-             
+
              currentImage = { original: data.image };
              currentMetadata = data.metadata;
-            
+
             const date = data.metadata.timestamp ? new Date(data.metadata.timestamp) : new Date();
             const generationTime = data.metadata.generation_time ? `${data.metadata.generation_time}s` : 'N/A';
            els.imageInfo.innerHTML = `
@@ -408,7 +408,7 @@ async function handleGenerate() {
    function downloadImage() {
         if (currentImage && currentMetadata) {
         let link = document.createElement('a');
-        
+
         if (typeof currentImage === 'object' && currentImageFilenames) {
           let filename = currentImageFilenames.original;
           if (filename) {
@@ -418,10 +418,10 @@ async function handleGenerate() {
             return;
           }
         }
-        
+
         let imageToDownload = typeof currentImage === 'object' ? currentImage.original : currentImage;
         let downloadFilename = `image_${currentMetadata.timestamp.replace(/[:.]/g, '-').replace(/[\\/\\\\*?<\"|>"\s]/g, '')}.png`;
-        
+
         link = document.createElement('a');
            link.href = `data:image/png;base64,${imageToDownload}`;
            link.download = downloadFilename;
@@ -432,10 +432,10 @@ async function handleGenerate() {
      function togglePromptExpand(expandable) {
        const container = expandable.parentElement;
        const fullPrompt = container.querySelector('.prompt-full');
-       
+
        if (fullPrompt && fullPrompt.classList.contains('prompt-full')) {
          const isHidden = fullPrompt.classList.contains('hidden');
-         
+
          if (isHidden) {
            fullPrompt.textContent = fullPrompt.dataset.prompt;
            fullPrompt.classList.remove('hidden');
@@ -450,22 +450,22 @@ async function handleGenerate() {
        els.promptAssistBtn.addEventListener('click', handlePromptAssist);
        els.generateBtn.addEventListener('click', handleGenerate);
        els.downloadBtn.addEventListener('click', downloadImage);
-      
+
      document.addEventListener('click', (e) => {
          const expandable = e.target.closest('.prompt-expandable');
          if (expandable) {
            togglePromptExpand(expandable);
          }
        });
-      
+
        els.randomSeedBtn.addEventListener('click', () => {
          els.seedInput.value = generateRandomSeed();
        });
-       
+
           els.modelSelect.addEventListener('change', () => {
               localStorage.setItem('diffused_lemon_model', els.modelSelect.value);
             });
-            
+
            els.widthSelect.addEventListener('change', () => {
               localStorage.setItem('diffused_lemon_width', els.widthSelect.value);
            });
