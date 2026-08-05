@@ -14,7 +14,6 @@ from PIL import Image
 from .config import config
 from .logger import get_logger
 
-
 logger = get_logger()
 
 
@@ -46,9 +45,7 @@ class LemonadeClient:
 
     async def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         if self._session is None:
-            raise Exception(
-                "Client session not initialized. Use 'async with' context manager."
-            )
+            raise Exception("Client session not initialized. Use 'async with' context manager.")
 
         url = f"{self.server_uri}{endpoint}"
         headers = kwargs.get("headers", {"Content-Type": "application/json"})
@@ -69,15 +66,11 @@ class LemonadeClient:
 
     async def get_models(self) -> list:
         if self._session is None:
-            raise Exception(
-                "Client session not initialized. Use 'async with' context manager."
-            )
+            raise Exception("Client session not initialized. Use 'async with' context manager.")
         response = await self._request("GET", "/api/v1/models")
         return response.get("data", [])
 
-    async def chat_completion(
-        self, model: str, messages: list, stream: bool = False
-    ) -> str:
+    async def chat_completion(self, model: str, messages: list, stream: bool = False) -> str:
         payload = {"model": model, "messages": messages, "stream": stream}
         response = await self._request("POST", "/api/v1/chat/completions", json=payload)
         return response["choices"][0]["message"]["content"]
@@ -103,9 +96,7 @@ class LemonadeClient:
         if cfg_scale is not None:
             payload["cfg_scale"] = cfg_scale
 
-        response = await self._request(
-            "POST", "/api/v1/images/generations", json=payload
-        )
+        response = await self._request("POST", "/api/v1/images/generations", json=payload)
         return response["data"][0]["b64_json"]
 
     async def is_server_available(self) -> bool:
@@ -121,13 +112,9 @@ class LemonadeClient:
         if cls._flux_assistant_session is None:
             logger.debug("Creating new flux assistant session")
             cls._flux_assistant_session = aiohttp.ClientSession()
-            logger.debug(
-                f"Flux assistant session created: {cls._flux_assistant_session}"
-            )
+            logger.debug(f"Flux assistant session created: {cls._flux_assistant_session}")
         else:
-            logger.debug(
-                f"Reusing flux assistant session: {cls._flux_assistant_session}"
-            )
+            logger.debug(f"Reusing flux assistant session: {cls._flux_assistant_session}")
         return cls._flux_assistant_session
 
     async def unload_model(self, model: str) -> None:
@@ -315,9 +302,7 @@ class ImageStorage:
                 timestamp = f"{timestamp}_{suffix}"
             filename = f"{timestamp}.png"
         image_path = os.path.join(self.images_dir, filename)
-        metadata_path = os.path.join(
-            self.metadata_dir, filename.replace(".png", ".json")
-        )
+        metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
 
         image_data = base64.b64decode(b64_data)
         image = Image.open(io.BytesIO(image_data))
@@ -338,9 +323,7 @@ class ImageStorage:
     def generate_thumbnail(self, filename: str) -> str:
         image_path = os.path.join(self.images_dir, filename)
         if not os.path.exists(image_path):
-            logger.warning(
-                "Thumbnail generation skipped, image not found", filename=filename
-            )
+            logger.warning("Thumbnail generation skipped, image not found", filename=filename)
             return ""
         thumb_filename = filename.rsplit(".", 1)[0] + ".jpg"
         thumb_path = os.path.join(self.thumbs_dir, thumb_filename)
@@ -358,9 +341,7 @@ class ImageStorage:
         if os.path.exists(image_path):
             with open(image_path, "rb") as f:
                 b64_data = base64.b64encode(f.read()).decode("utf-8")
-            metadata_path = os.path.join(
-                self.metadata_dir, filename.replace(".png", ".json")
-            )
+            metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
             metadata = {}
             if os.path.exists(metadata_path):
                 with open(metadata_path, "r") as f:
@@ -379,24 +360,18 @@ class ImageStorage:
         return images
 
     def get_metadata(self, filename: str) -> Optional[Dict[str, Any]]:
-        metadata_path = os.path.join(
-            self.metadata_dir, filename.replace(".png", ".json")
-        )
+        metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
         if os.path.exists(metadata_path):
             with open(metadata_path, "r") as f:
                 return json.load(f)
         return None
 
-    def list_images_metadata(
-        self, limit: int = 50, offset: int = 0
-    ) -> List[Dict[str, Any]]:
+    def list_images_metadata(self, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         images: List[Dict[str, Any]] = []
         all_filenames = sorted(os.listdir(self.images_dir), reverse=True)
         for filename in all_filenames[offset : offset + limit]:
             if filename.endswith(".png"):
-                metadata_path = os.path.join(
-                    self.metadata_dir, filename.replace(".png", ".json")
-                )
+                metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
                 if os.path.exists(metadata_path):
                     with open(metadata_path, "r") as f:
                         metadata = json.load(f)
@@ -439,9 +414,7 @@ async def handle_prompt_assist(request: web.Request) -> web.Response:
 
             await LemonadeClient.maybe_unload_flux_assistant()
 
-            return web.json_response(
-                {"original_prompt": simple_prompt, "expanded_prompt": expanded_prompt}
-            )
+            return web.json_response({"original_prompt": simple_prompt, "expanded_prompt": expanded_prompt})
         finally:
             await client.close()
     except Exception as e:
@@ -458,9 +431,7 @@ async def handle_generate(request: web.Request) -> web.Response:
 
         missing = [f for f in required_fields if f not in data]
         if missing:
-            return web.json_response(
-                {"error": f"Missing required fields: {missing}"}, status=400
-            )
+            return web.json_response({"error": f"Missing required fields: {missing}"}, status=400)
 
         prompt = data["prompt"]
         model = data["model"]
@@ -530,11 +501,11 @@ async def handle_get_models(request: web.Request) -> web.Response:
         async with LemonadeClient() as client:
             models = await client.get_models()
             # Filter to only show models with 'image' label
-            image_models = [model for model in models if model.get('labels') and 'image' in model['labels']]
+            image_models = [model for model in models if model.get("labels") and "image" in model["labels"]]
             # Also include the prompt assist model if it exists and is not already in the list
             prompt_assist_model = config.get("prompt_assist_model")
             if prompt_assist_model:
-                prompt_assist = next((model for model in models if model.get('id') == prompt_assist_model), None)
+                prompt_assist = next((model for model in models if model.get("id") == prompt_assist_model), None)
                 if prompt_assist and prompt_assist not in image_models:
                     image_models.append(prompt_assist)
             return web.json_response({"models": image_models})
@@ -620,9 +591,7 @@ async def handle_health(request: web.Request) -> web.Response:
 
 
 async def handle_index(request: web.Request) -> web.Response:
-    frontend_path = os.path.join(
-        os.path.dirname(__file__), "..", "frontend", "index.html"
-    )
+    frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "index.html")
     if os.path.exists(frontend_path):
         with open(frontend_path, "r") as f:
             html_content = f.read()
@@ -631,9 +600,7 @@ async def handle_index(request: web.Request) -> web.Response:
 
 
 async def handle_app_js(request: web.Request) -> web.Response:
-    frontend_path = os.path.join(
-        os.path.dirname(__file__), "..", "frontend", "app.js"
-    )
+    frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "app.js")
     if os.path.exists(frontend_path):
         with open(frontend_path, "r") as f:
             js_content = f.read()
@@ -642,9 +609,7 @@ async def handle_app_js(request: web.Request) -> web.Response:
 
 
 async def handle_style_css(request: web.Request) -> web.Response:
-    frontend_path = os.path.join(
-        os.path.dirname(__file__), "..", "frontend", "style.css"
-    )
+    frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "style.css")
     if os.path.exists(frontend_path):
         with open(frontend_path, "r") as f:
             css_content = f.read()
@@ -670,15 +635,9 @@ def create_app() -> web.Application:
 
 def main():
     parser = argparse.ArgumentParser(description="Diffused Lemon Middleware Server")
-    parser.add_argument(
-        "--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)"
-    )
-    parser.add_argument(
-        "--port", type=int, default=8080, help="Port to bind to (default: 8080)"
-    )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose logging"
-    )
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=8080, help="Port to bind to (default: 8080)")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
@@ -693,16 +652,12 @@ def main():
         from .logger import JSONLogger
 
         log_level = os.environ.get("LM_LOG_LEVEL", "DEBUG")
-        logger.logger = JSONLogger(
-            config.log_file, log_level, stream_output=True
-        ).logger
+        logger.logger = JSONLogger(config.log_file, log_level, stream_output=True).logger
     else:
         from .logger import JSONLogger
 
         log_level = os.environ.get("LM_LOG_LEVEL", "INFO")
-        logger.logger = JSONLogger(
-            config.log_file, log_level, stream_output=False
-        ).logger
+        logger.logger = JSONLogger(config.log_file, log_level, stream_output=False).logger
 
     web.run_app(create_app(), host=args.host, port=args.port)
 

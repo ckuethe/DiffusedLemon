@@ -9,7 +9,6 @@ from PIL import Image
 from .config import config
 from .logger import get_logger
 
-
 logger = get_logger()
 
 
@@ -31,9 +30,7 @@ class ImageStorage:
     def save_image(self, b64_data: str, metadata: Dict[str, Any]) -> str:
         filename = self._generate_filename()
         image_path = os.path.join(self.images_dir, filename)
-        metadata_path = os.path.join(
-            self.metadata_dir, filename.replace(".png", ".json")
-        )
+        metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
 
         image_data = base64.b64decode(b64_data)
         image = Image.open(io.BytesIO(image_data))
@@ -54,9 +51,7 @@ class ImageStorage:
         if os.path.exists(image_path):
             with open(image_path, "rb") as f:
                 b64_data = base64.b64encode(f.read()).decode("utf-8")
-            metadata_path = os.path.join(
-                self.metadata_dir, filename.replace(".png", ".json")
-            )
+            metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
             metadata = {}
             if os.path.exists(metadata_path):
                 with open(metadata_path, "r") as f:
