@@ -101,8 +101,33 @@ h1 {
   color: var(--text);
 }
 
-.form-group {
-  margin-bottom: 15px;
+.card.full-width {
+  max-width: 100%;
+  width: 100%;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 20px;
+  background: var(--card-bg);
+  position: relative;
+  left: 50%;
+  right: 50%;
+  transform: translateX(-50%);
+  width: calc(100% + 40px);
+  max-width: calc(1200px + 40px);
+}
+
+.card.full-width h2 {
+  padding: 0;
+}
+
+.history-section {
+  margin-top: 30px;
+  padding: 0 20px;
+}
+
+.history-section .history-grid {
+  max-width: 100%;
 }
 
 .form-group label {
