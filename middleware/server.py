@@ -1,6 +1,6 @@
 import aiohttp
 from aiohttp import web
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 import json
 import os
 import argparse
@@ -15,6 +15,37 @@ from .config import config
 from .logger import get_logger
 
 logger = get_logger()
+
+
+def _get_file_mtime_and_content(filepath: str) -> Tuple[float, str]:
+    """Get file modification time and content, or (0, None) if file doesn't exist."""
+    if os.path.exists(filepath):
+        with open(filepath, "r") as f:
+            content = f.read()
+        mtime = os.path.getmtime(filepath)
+        return mtime, content
+    return 0, ""
+
+
+def _create_cached_response(content: str, content_type: str, filename: str):
+    """Create a response with appropriate cache headers."""
+    if not content:
+        return web.Response(text="File not found", status=404)
+
+    headers = {
+        "Cache-Control": f"public, max-age=0, must-revalidate",
+        "Content-Type": content_type,
+        "ETag": f'"{hash(content)}"',
+    }
+
+    if filename.endswith(".html"):
+        headers["Content-Type"] = "text/html; charset=utf-8"
+    elif filename.endswith(".js"):
+        headers["Content-Type"] = "application/javascript; charset=utf-8"
+    elif filename.endswith(".css"):
+        headers["Content-Type"] = "text/css; charset=utf-8"
+
+    return web.Response(text=content, headers=headers)
 
 
 class LemonadeClient:
@@ -505,7 +536,10 @@ async def handle_get_models(request: web.Request) -> web.Response:
             # Also include the prompt assist model if it exists and is not already in the list
             prompt_assist_model = config.get("prompt_assist_model")
             if prompt_assist_model:
-                prompt_assist = next((model for model in models if model.get("id") == prompt_assist_model), None)
+                prompt_assist = next(
+                    (model for model in models if model.get("id") == prompt_assist_model),
+                    None,
+                )
                 if prompt_assist and prompt_assist not in image_models:
                     image_models.append(prompt_assist)
             return web.json_response({"models": image_models})
@@ -592,29 +626,20 @@ async def handle_health(request: web.Request) -> web.Response:
 
 async def handle_index(request: web.Request) -> web.Response:
     frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "index.html")
-    if os.path.exists(frontend_path):
-        with open(frontend_path, "r") as f:
-            html_content = f.read()
-        return web.Response(text=html_content, content_type="text/html")
-    return web.Response(text="Frontend not found", status=404)
+    mtime, html_content = _get_file_mtime_and_content(frontend_path)
+    return _create_cached_response(html_content, "text/html", "index.html")
 
 
 async def handle_app_js(request: web.Request) -> web.Response:
     frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "app.js")
-    if os.path.exists(frontend_path):
-        with open(frontend_path, "r") as f:
-            js_content = f.read()
-        return web.Response(text=js_content, content_type="application/javascript")
-    return web.Response(text="JavaScript not found", status=404)
+    mtime, js_content = _get_file_mtime_and_content(frontend_path)
+    return _create_cached_response(js_content, "application/javascript", "app.js")
 
 
 async def handle_style_css(request: web.Request) -> web.Response:
     frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "style.css")
-    if os.path.exists(frontend_path):
-        with open(frontend_path, "r") as f:
-            css_content = f.read()
-        return web.Response(text=css_content, content_type="text/css")
-    return web.Response(text="CSS not found", status=404)
+    mtime, css_content = _get_file_mtime_and_content(frontend_path)
+    return _create_cached_response(css_content, "text/css", "style.css")
 
 
 def create_app() -> web.Application:
