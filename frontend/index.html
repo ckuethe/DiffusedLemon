@@ -127,9 +127,17 @@
              <label for="cfgInput">CFG Scale (optional)</label>
              <input type="number" id="cfgInput" placeholder="Optional" min="0" step="0.1" max="4.0">
            </div>
+          </div>
 
-         </div>
-       </aside>
+        <div class="card">
+          <h2>Image History</h2>
+          <div class="history-grid" id="historyGrid">
+            <p class="placeholder" style="grid-column: 1/-1;">No images yet</p>
+          </div>
+          <div id="loadingMore" style="display: none; text-align: center; padding: 20px; color: var(--text-light);">Loading more...</div>
+          <div id="scrollSentinel" style="height: 1px;"></div>
+        </div>
+      </aside>
 
        <main class="image-display">
          <div class="card image-container">
@@ -149,16 +157,7 @@
              </button>
            </div>
          </div>
-       </main>
-
-       <section class="history-section card">
-       <h2>Image History</h2>
-       <div class="history-grid" id="historyGrid">
-         <p class="placeholder" style="grid-column: 1/-1;">No images yet</p>
-       </div>
-       <div id="loadingMore" style="display: none; text-align: center; padding: 20px; color: var(--text-light);">Loading more...</div>
-       <div id="scrollSentinel" style="height: 1px;"></div>
-     </section>
+        </main>
    </div>
 
  <script src="app.js"></script>
