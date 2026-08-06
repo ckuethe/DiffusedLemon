@@ -501,7 +501,23 @@ async def handle_prompt_assist(request: web.Request) -> web.Response:
             await client.close()
     except Exception as e:
         logger.error("Prompt assist failed", error=str(e))
-        return web.json_response({"error": str(e)}, status=500)
+        
+        # Try to extract detailed error information from the Lemonade server
+        error_details = "Prompt assist failed"
+        if "HTTP" in str(e) and "from Lemonade:" in str(e):
+            # Extract the actual error from the Lemonade server response
+            error_text = str(e).split("from Lemonade:", 1)[1].strip()
+            try:
+                import json
+                error_json = json.loads(error_text)
+                if "error" in error_json and "message" in error_json["error"]:
+                    error_details = error_json["error"]["message"]
+                    if "details" in error_json["error"] and "response" in error_json["error"]["details"]:
+                        error_details += f" (Backend: {error_json['error']['details']['response'].get('error', 'unknown')})"
+            except (json.JSONDecodeError, KeyError):
+                pass
+        
+        return web.json_response({"error": error_details}, status=500)
 
 
 async def handle_generate(request: web.Request) -> web.Response:
@@ -577,7 +593,23 @@ async def handle_generate(request: web.Request) -> web.Response:
 
     except Exception as e:
         logger.error("Image generation failed", error=str(e))
-        return web.json_response({"error": str(e)}, status=500)
+        
+        # Try to extract detailed error information from the Lemonade server
+        error_details = "Image generation failed"
+        if "HTTP" in str(e) and "from Lemonade:" in str(e):
+            # Extract the actual error from the Lemonade server response
+            error_text = str(e).split("from Lemonade:", 1)[1].strip()
+            try:
+                import json
+                error_json = json.loads(error_text)
+                if "error" in error_json and "message" in error_json["error"]:
+                    error_details = error_json["error"]["message"]
+                    if "details" in error_json["error"] and "response" in error_json["error"]["details"]:
+                        error_details += f" (Backend: {error_json['error']['details']['response'].get('error', 'unknown')})"
+            except (json.JSONDecodeError, KeyError):
+                pass
+        
+        return web.json_response({"error": error_details}, status=500)
 
 
 async def handle_get_models(request: web.Request) -> web.Response:
@@ -606,7 +638,23 @@ async def handle_get_models(request: web.Request) -> web.Response:
             return web.json_response({"models": image_models})
     except Exception as e:
         logger.error("Failed to get models", error=str(e))
-        return web.json_response({"error": str(e)}, status=500)
+        
+        # Try to extract detailed error information from the Lemonade server
+        error_details = "Failed to get models"
+        if "HTTP" in str(e) and "from Lemonade:" in str(e):
+            # Extract the actual error from the Lemonade server response
+            error_text = str(e).split("from Lemonade:", 1)[1].strip()
+            try:
+                import json
+                error_json = json.loads(error_text)
+                if "error" in error_json and "message" in error_json["error"]:
+                    error_details = error_json["error"]["message"]
+                    if "details" in error_json["error"] and "response" in error_json["error"]["details"]:
+                        error_details += f" (Backend: {error_json['error']['details']['response'].get('error', 'unknown')})"
+            except (json.JSONDecodeError, KeyError):
+                pass
+        
+        return web.json_response({"error": error_details}, status=500)
 
 
 async def handle_get_image(request: web.Request) -> web.Response:
