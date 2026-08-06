@@ -62,6 +62,7 @@ h1 {
   font-size: 0.85rem;
   color: var(--text-light);
   margin-left: 10px;
+  font-weight: 500;
 }
 
 .status-indicator {

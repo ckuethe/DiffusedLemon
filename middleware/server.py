@@ -76,7 +76,9 @@ class LemonadeClient:
 
     async def _request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         if self._session is None:
-            raise Exception("Client session not initialized. Use 'async with' context manager.")
+            raise Exception(
+                "Client session not initialized. Use 'async with' context manager."
+            )
 
         url = f"{self.server_uri}{endpoint}"
         headers = kwargs.get("headers", {"Content-Type": "application/json"})
@@ -95,16 +97,13 @@ class LemonadeClient:
             logger.error(f"Connection error to Lemonade: {e}")
             raise Exception(f"Failed to connect to Lemonade server: {e}")
 
-    async def get_models(self) -> list:
+    async def get_available_models(self) -> list:
         if self._session is None:
-            raise Exception("Client session not initialized. Use 'async with' context manager.")
+            raise Exception(
+                "Client session not initialized. Use 'async with' context manager."
+            )
         response = await self._request("GET", "/api/v1/models")
         return response.get("data", [])
-
-    async def chat_completion(self, model: str, messages: list, stream: bool = False) -> str:
-        payload = {"model": model, "messages": messages, "stream": stream}
-        response = await self._request("POST", "/api/v1/chat/completions", json=payload)
-        return response["choices"][0]["message"]["content"]
 
     async def generate_image(
         self,
@@ -127,8 +126,42 @@ class LemonadeClient:
         if cfg_scale is not None:
             payload["cfg_scale"] = cfg_scale
 
-        response = await self._request("POST", "/api/v1/images/generations", json=payload)
+        response = await self._request(
+            "POST", "/api/v1/images/generations", json=payload
+        )
         return response["data"][0]["b64_json"]
+
+    async def chat_completion(
+        self, model: str, messages: list, stream: bool = False
+    ) -> str:
+        payload = {"model": model, "messages": messages, "stream": stream}
+        response = await self._request("POST", "/api/v1/chat/completions", json=payload)
+        return response["choices"][0]["message"]["content"]
+
+    async def get_available_models(self) -> list:
+        if self._session is None:
+            raise Exception(
+                "Client session not initialized. Use 'async with' context manager."
+            )
+        response = await self._request("GET", "/api/v1/models")
+        return response.get("data", [])
+
+    async def get_loaded_models(self) -> list:
+        if self._session is None:
+            raise Exception(
+                "Client session not initialized. Use 'async with' context manager."
+            )
+        response = await self._request("GET", "/v1/health")
+        loaded_models = []
+
+        if "all_models_loaded" in response:
+            for model_info in response["all_models_loaded"]:
+                if model_info.get("loaded") and model_info.get("recipe") == "sd-cpp":
+                    loaded_models.append(
+                        {"id": model_info.get("model_name"), "labels": ["image"]}
+                    )
+
+        return loaded_models
 
     async def is_server_available(self) -> bool:
         try:
@@ -143,9 +176,13 @@ class LemonadeClient:
         if cls._flux_assistant_session is None:
             logger.debug("Creating new flux assistant session")
             cls._flux_assistant_session = aiohttp.ClientSession()
-            logger.debug(f"Flux assistant session created: {cls._flux_assistant_session}")
+            logger.debug(
+                f"Flux assistant session created: {cls._flux_assistant_session}"
+            )
         else:
-            logger.debug(f"Reusing flux assistant session: {cls._flux_assistant_session}")
+            logger.debug(
+                f"Reusing flux assistant session: {cls._flux_assistant_session}"
+            )
         return cls._flux_assistant_session
 
     async def unload_model(self, model: str) -> None:
@@ -333,7 +370,9 @@ class ImageStorage:
                 timestamp = f"{timestamp}_{suffix}"
             filename = f"{timestamp}.png"
         image_path = os.path.join(self.images_dir, filename)
-        metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
+        metadata_path = os.path.join(
+            self.metadata_dir, filename.replace(".png", ".json")
+        )
 
         image_data = base64.b64decode(b64_data)
         image = Image.open(io.BytesIO(image_data))
@@ -354,7 +393,9 @@ class ImageStorage:
     def generate_thumbnail(self, filename: str) -> str:
         image_path = os.path.join(self.images_dir, filename)
         if not os.path.exists(image_path):
-            logger.warning("Thumbnail generation skipped, image not found", filename=filename)
+            logger.warning(
+                "Thumbnail generation skipped, image not found", filename=filename
+            )
             return ""
         thumb_filename = filename.rsplit(".", 1)[0] + ".jpg"
         thumb_path = os.path.join(self.thumbs_dir, thumb_filename)
@@ -372,7 +413,9 @@ class ImageStorage:
         if os.path.exists(image_path):
             with open(image_path, "rb") as f:
                 b64_data = base64.b64encode(f.read()).decode("utf-8")
-            metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
+            metadata_path = os.path.join(
+                self.metadata_dir, filename.replace(".png", ".json")
+            )
             metadata = {}
             if os.path.exists(metadata_path):
                 with open(metadata_path, "r") as f:
@@ -391,18 +434,24 @@ class ImageStorage:
         return images
 
     def get_metadata(self, filename: str) -> Optional[Dict[str, Any]]:
-        metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
+        metadata_path = os.path.join(
+            self.metadata_dir, filename.replace(".png", ".json")
+        )
         if os.path.exists(metadata_path):
             with open(metadata_path, "r") as f:
                 return json.load(f)
         return None
 
-    def list_images_metadata(self, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+    def list_images_metadata(
+        self, limit: int = 50, offset: int = 0
+    ) -> List[Dict[str, Any]]:
         images: List[Dict[str, Any]] = []
         all_filenames = sorted(os.listdir(self.images_dir), reverse=True)
         for filename in all_filenames[offset : offset + limit]:
             if filename.endswith(".png"):
-                metadata_path = os.path.join(self.metadata_dir, filename.replace(".png", ".json"))
+                metadata_path = os.path.join(
+                    self.metadata_dir, filename.replace(".png", ".json")
+                )
                 if os.path.exists(metadata_path):
                     with open(metadata_path, "r") as f:
                         metadata = json.load(f)
@@ -445,7 +494,9 @@ async def handle_prompt_assist(request: web.Request) -> web.Response:
 
             await LemonadeClient.maybe_unload_flux_assistant()
 
-            return web.json_response({"original_prompt": simple_prompt, "expanded_prompt": expanded_prompt})
+            return web.json_response(
+                {"original_prompt": simple_prompt, "expanded_prompt": expanded_prompt}
+            )
         finally:
             await client.close()
     except Exception as e:
@@ -462,7 +513,9 @@ async def handle_generate(request: web.Request) -> web.Response:
 
         missing = [f for f in required_fields if f not in data]
         if missing:
-            return web.json_response({"error": f"Missing required fields: {missing}"}, status=400)
+            return web.json_response(
+                {"error": f"Missing required fields: {missing}"}, status=400
+            )
 
         prompt = data["prompt"]
         model = data["model"]
@@ -530,14 +583,22 @@ async def handle_generate(request: web.Request) -> web.Response:
 async def handle_get_models(request: web.Request) -> web.Response:
     try:
         async with LemonadeClient() as client:
-            models = await client.get_models()
+            available_models = await client.get_available_models()
             # Filter to only show models with 'image' label
-            image_models = [model for model in models if model.get("labels") and "image" in model["labels"]]
+            image_models = [
+                model
+                for model in available_models
+                if model.get("labels") and "image" in model["labels"]
+            ]
             # Also include the prompt assist model if it exists and is not already in the list
             prompt_assist_model = config.get("prompt_assist_model")
             if prompt_assist_model:
                 prompt_assist = next(
-                    (model for model in models if model.get("id") == prompt_assist_model),
+                    (
+                        model
+                        for model in available_models
+                        if model.get("id") == prompt_assist_model
+                    ),
                     None,
                 )
                 if prompt_assist and prompt_assist not in image_models:
@@ -611,6 +672,19 @@ async def handle_health(request: web.Request) -> web.Response:
     prompt_assist_model = config.get("prompt_assist_model")
     default_model = config.get("default_model", "")
 
+    try:
+        async with LemonadeClient() as client:
+            loaded_models = await client.get_loaded_models()
+            image_models = [
+                model
+                for model in loaded_models
+                if model.get("labels") and "image" in model["labels"]
+            ]
+            model_names = [m.get("id", "") for m in image_models]
+    except Exception as e:
+        logger.error("Failed to get loaded models for health check", error=str(e))
+        model_names = []
+
     return web.json_response(
         {
             "status": "healthy" if available else "unhealthy",
@@ -620,12 +694,20 @@ async def handle_health(request: web.Request) -> web.Response:
             "default_size": default_size,
             "prompt_assist_model": prompt_assist_model,
             "default_model": default_model,
+            "loaded_models": model_names,
         }
     )
 
 
+async def handle_v1_health(request: web.Request) -> web.Response:
+    """V1 health endpoint that shows loaded image generation models"""
+    return await handle_health(request)
+
+
 async def handle_index(request: web.Request) -> web.Response:
-    frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "index.html")
+    frontend_path = os.path.join(
+        os.path.dirname(__file__), "..", "frontend", "index.html"
+    )
     mtime, html_content = _get_file_mtime_and_content(frontend_path)
     return _create_cached_response(html_content, "text/html", "index.html")
 
@@ -637,7 +719,9 @@ async def handle_app_js(request: web.Request) -> web.Response:
 
 
 async def handle_style_css(request: web.Request) -> web.Response:
-    frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "style.css")
+    frontend_path = os.path.join(
+        os.path.dirname(__file__), "..", "frontend", "style.css"
+    )
     mtime, css_content = _get_file_mtime_and_content(frontend_path)
     return _create_cached_response(css_content, "text/css", "style.css")
 
@@ -655,14 +739,21 @@ def create_app() -> web.Application:
     app.router.add_get("/images/{filename}/thumb", handle_get_thumbnail)
     app.router.add_get("/images/{filename}", handle_get_image)
     app.router.add_get("/health", handle_health)
+    app.router.add_get("/v1/health", handle_v1_health)
     return app
 
 
 def main():
     parser = argparse.ArgumentParser(description="Diffused Lemon Middleware Server")
-    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
-    parser.add_argument("--port", type=int, default=8080, help="Port to bind to (default: 8080)")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
+    parser.add_argument(
+        "--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)"
+    )
+    parser.add_argument(
+        "--port", type=int, default=8080, help="Port to bind to (default: 8080)"
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable verbose logging"
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
@@ -677,12 +768,16 @@ def main():
         from .logger import JSONLogger
 
         log_level = os.environ.get("LM_LOG_LEVEL", "DEBUG")
-        logger.logger = JSONLogger(config.log_file, log_level, stream_output=True).logger
+        logger.logger = JSONLogger(
+            config.log_file, log_level, stream_output=True
+        ).logger
     else:
         from .logger import JSONLogger
 
         log_level = os.environ.get("LM_LOG_LEVEL", "INFO")
-        logger.logger = JSONLogger(config.log_file, log_level, stream_output=False).logger
+        logger.logger = JSONLogger(
+            config.log_file, log_level, stream_output=False
+        ).logger
 
     web.run_app(create_app(), host=args.host, port=args.port)
 
