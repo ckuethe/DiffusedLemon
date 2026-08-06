@@ -6,6 +6,9 @@ storage/
 *.png
 *.json
 
+# stop the agent from trying to commit this
+middleware/config.json
+
 # Python cache
 __pycache__/
 *.py[cod]

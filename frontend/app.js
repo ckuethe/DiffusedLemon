@@ -35,6 +35,25 @@ const els = {
     scrollSentinel: document.getElementById('scrollSentinel'),
     unloadModelBtn: document.getElementById('unloadModelBtn'),
     cfgInput: document.getElementById('cfgInput'),
+    themeToggleBtn: document.getElementById('themeToggleBtn'),
+}
+
+// Theme Functions
+function applyTheme(theme) {
+  if (theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    els.themeToggleBtn.textContent = '☀️';
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+    els.themeToggleBtn.textContent = '🌙';
+  }
+}
+
+function toggleTheme() {
+  const currentDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const newTheme = currentDark ? 'light' : 'dark';
+  localStorage.setItem('diffused_lemon_theme', newTheme);
+  applyTheme(newTheme);
 }
 
 // Utility Functions
@@ -386,6 +405,15 @@ async function init() {
         }
     }
 
+    // Apply theme - default to dark, check localStorage first for user preference
+    let savedTheme = localStorage.getItem('diffused_lemon_theme');
+    if (!savedTheme && serverConfig?.default_theme) {
+      savedTheme = serverConfig.default_theme;
+    } else if (!savedTheme) {
+      savedTheme = 'dark';
+    }
+    applyTheme(savedTheme);
+
     if (!serverOk) {
         showError('Server disconnected. Some features may not work.');
     }
@@ -499,6 +527,8 @@ els.widthSelect.addEventListener('change', () => {
 els.heightSelect.addEventListener('change', () => {
     localStorage.setItem('diffused_lemon_height', els.heightSelect.value);
 });
+
+els.themeToggleBtn.addEventListener('click', toggleTheme);
 
 init();
 

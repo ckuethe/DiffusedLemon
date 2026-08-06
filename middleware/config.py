@@ -28,6 +28,7 @@ class Config:
             "LM_PROMPT_ASSIST_MODEL": "prompt_assist_model",
             "LM_PROMPT_ASSIST_SYSTEM_PROMPT": "prompt_assist_system_prompt",
             "LM_FLUX_ASSISTANT_UNLOAD_DELAY": "flux_assistant_unload_delay",
+            "LM_DEFAULT_THEME": "default_theme",
         }
         for env_var, config_key in env_mapping.items():
             if env_var in os.environ:

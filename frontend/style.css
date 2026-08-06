@@ -16,6 +16,18 @@
   --success: #10b981;
 }
 
+[data-theme="dark"] {
+  --primary: #60a5fa;
+  --primary-hover: #3b82f6;
+  --bg: #111827;
+  --card-bg: #1f2937;
+  --text: #f3f4f6;
+  --text-light: #9ca3af;
+  --border: #374151;
+  --error: #f87171;
+  --success: #34d399;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   background-color: var(--bg);
@@ -164,7 +176,7 @@ h1 {
 }
 
 .form-group textarea.expanded {
-   background-color: #f9fafb;
+   background-color: var(--bg);
 }
 
 .button-group {
@@ -245,12 +257,17 @@ button:disabled {
   animation: spin 1s linear infinite;
 }
 
+.theme-toggle-btn {
+  padding: 4px 10px;
+  font-size: 1rem;
+  flex: none;
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-.error-message {
-  background-color: #fef2f2;
+.error-message {  background-color: rgba(239, 68, 68, 0.1);
   border: 1px solid var(--error);
   color: var(--error);
   padding: 12px;
