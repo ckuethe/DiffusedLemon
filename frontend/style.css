@@ -160,6 +160,14 @@ h1 {
   border-radius: 6px;
   font-size: 1rem;
   font-family: inherit;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+.form-group input::placeholder,
+.form-group select::placeholder,
+.form-group textarea::placeholder {
+  color: var(--text-light);
 }
 
 .form-group input:focus,
@@ -173,10 +181,6 @@ h1 {
 .form-group textarea {
   resize: vertical;
   min-height: 100px;
-}
-
-.form-group textarea.expanded {
-   background-color: var(--bg);
 }
 
 .button-group {
